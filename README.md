@@ -4,6 +4,8 @@ Native ruby interface for libsecp256k1.
 
 ## Building
 
+You'll need to have compiled and installed libsecp256k1 from source.
+
 Run the following to build:
 
 ```
