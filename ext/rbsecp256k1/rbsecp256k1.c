@@ -1,7 +1,7 @@
 #include <ruby.h>
 #include <secp256k1.h>
 
-void Init_secpruby()
+void Init_rbsecp256k1()
 {
-  VALUE secpruby_module = rb_define_module("SecpRuby");
+  VALUE secp256k1_module = rb_define_module("Secp256k1");
 }
