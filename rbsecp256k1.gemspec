@@ -1,9 +1,9 @@
 $LOAD_PATH.push(File.expand_path('lib', __dir__))
-require 'secpruby/version'
+require 'rbsecp256k1/version'
 
 Gem::Specification.new do |s|
-  s.name    = 'secpruby'
-  s.version = SecpRuby::VERSION
+  s.name    = 'rbsecp256k1'
+  s.version = Secp256k1::VERSION
   s.summary = 'Compiled, native ruby interfaces to libsecp256k1'
   s.license = 'BSD'
   s.authors = ['Eric Scrivner']
@@ -11,5 +11,5 @@ Gem::Specification.new do |s|
   s.files = Dir['lib/**.rb']
   s.require_paths = ['lib']
 
-  s.extensions = ['ext/secpruby/extconf.rb']
+  s.extensions = ['ext/rbsecp256k1/extconf.rb']
 end
