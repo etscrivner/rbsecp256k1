@@ -11,5 +11,7 @@ Gem::Specification.new do |s|
   s.files = Dir['lib/**.rb']
   s.require_paths = ['lib']
 
+  s.add_dependency 'pkg-config'
+
   s.extensions = ['ext/rbsecp256k1/extconf.rb']
 end
