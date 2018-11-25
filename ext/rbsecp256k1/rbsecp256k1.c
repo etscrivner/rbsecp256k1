@@ -238,14 +238,19 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
 
 void Init_rbsecp256k1()
 {
+  VALUE Secp256k1_module;
+  VALUE Secp256k1_Context_class;
+  VALUE Secp256k1_PrivateKey_class;
+  VALUE Secp256k1_PublicKey_class;
+
   // Secp256k1
-  VALUE Secp256k1_module = rb_define_module("Secp256k1");
+  Secp256k1_module = rb_define_module("Secp256k1");
   rb_define_singleton_method(
     Secp256k1_module, "generate_private_key_bytes", Secp256k1_generate_private_key_bytes, 0
   );
 
   // Secp256k1::Context
-  VALUE Secp256k1_Context_class = rb_define_class_under(
+  Secp256k1_Context_class = rb_define_class_under(
     Secp256k1_module, "Context", rb_cObject
   );
   rb_define_alloc_func(Secp256k1_Context_class, Context_alloc);
@@ -253,14 +258,14 @@ void Init_rbsecp256k1()
                    "initialize", Context_initialize, 0);
 
   // Secp256k1::PrivateKey
-  VALUE Secp256k1_PrivateKey_class = rb_define_class_under(
+  Secp256k1_PrivateKey_class = rb_define_class_under(
     Secp256k1_module, "PrivateKey", rb_cObject
   );
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
   rb_define_method(Secp256k1_PrivateKey_class, "initialize", PrivateKey_initialize, 1);
 
   // Secp256k1::PublicKey
-  VALUE Secp256k1_PublicKey_class = rb_define_class_under(
+  Secp256k1_PublicKey_class = rb_define_class_under(
     Secp256k1_module, "PublicKey", rb_cObject
   );
   rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);

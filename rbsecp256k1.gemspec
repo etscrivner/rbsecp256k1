@@ -8,10 +8,8 @@ Gem::Specification.new do |s|
   s.license = 'BSD'
   s.authors = ['Eric Scrivner']
 
-  s.files = Dir['lib/**.rb']
-  s.require_paths = ['lib']
-
-  s.add_dependency 'pkg-config'
+  s.files = Dir['lib/**/**.rb'] + %w[ext/rbsecp256k1/rbsecp256k1.c ext/rbsecp256k1/extconf.rb Rakefile]
+  s.require_paths = ['ext', 'lib']
 
   s.extensions = ['ext/rbsecp256k1/extconf.rb']
 end
