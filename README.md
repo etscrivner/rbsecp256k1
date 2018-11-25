@@ -15,6 +15,12 @@ ruby extconf.rb
 make
 ```
 
+### Mac OS
+
+When running the `ruby extconf.rb` step, if building on Mac OS with openssl
+installed via homebrew it may be helpful to specify the location of your openssl
+library: `PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig" ruby extconf.rb`.
+
 ## Testing
 
 After you have built the gem you can run the unit-tests as follows:
