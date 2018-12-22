@@ -44,7 +44,7 @@ if ctx.verify(sig, key_pair.public_key, "test message")
   puts "Valid"
 else
   puts "Invalid"
-endif
+end
 ```
 
 ## Development
