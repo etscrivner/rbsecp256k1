@@ -22,7 +22,7 @@ addons:
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install openssl automake libtool pkg-config gmp libffi ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libtool pkg-config gmp libffi ; fi
 
 script:
   - make deps
