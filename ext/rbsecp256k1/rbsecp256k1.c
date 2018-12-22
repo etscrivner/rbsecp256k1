@@ -6,9 +6,10 @@
 // and verifying signatures using the library.
 //
 // Dependencies:
-// libsecp256k1
-// openssl
+// * libsecp256k1
+// * openssl
 #include <ruby.h>
+#include <stdio.h>
 
 #include <openssl/rand.h>
 #include <openssl/sha.h>
@@ -18,21 +19,57 @@
 //
 // The Ruby wrapper is divided into the following hierarchical organization:
 //
-// Secp256k1 (Top-level module)
-// +- Context
-// +- PublicKey
-// +- PrivateKey
-// +- Signature
+// +- Secp256k1 (Top-level module)
+// |--  Context
+// |--  KeyPair
+// |--  PublicKey
+// |--  PrivateKey
+// |--  Signature
 //
-// The Context object contains most of the methods that invoke libsecp256k1.
-// The PublicKey, PrivateKey, and Signature objects act as data objects passed
-// to various methods on the Context object. A new context is required for any
-// interaction at all with the library.
+// The Context class contains most of the methods that invoke libsecp256k1.
+// The KayPair, PublicKey, PrivateKey, and Signature objects act as data
+// objects and are passed to various methods. Contexts are thread safe and can
+// be used across applications. Context initialization is expensive so it is
+// recommended that a single context be initialized and used throughout an
+// application when possible.
 
 //
 // The section below contains purely internal methods used exclusively by the
 // C internals of the library.
-// 
+//
+
+// Globally define our module and its associated classes so we can instantiate
+// objects from anywhere. The use of global variables seems to be inline with
+// how the Ruby project builds its own extension gems.
+static VALUE Secp256k1_module;
+static VALUE Secp256k1_Context_class;
+static VALUE Secp256k1_KeyPair_class;
+static VALUE Secp256k1_PublicKey_class;
+static VALUE Secp256k1_PrivateKey_class;
+static VALUE Secp256k1_Signature_class;
+
+// Forward definitions for all structures
+typedef struct Context_dummy {
+  secp256k1_context *ctx; // Context used by libsecp256k1 library
+} Context;
+
+typedef struct KeyPair_dummy {
+  VALUE public_key;
+  VALUE private_key;
+} KeyPair;
+
+typedef struct PublicKey_dummy {
+  secp256k1_pubkey pubkey;
+  Context *context;
+} PublicKey;
+
+typedef struct PrivateKey_dummy {
+  unsigned char data[32]; // Bytes comprising the private key data
+} PrivateKey;
+
+typedef struct Signature_dummy {
+  secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature.
+} Signature;
 
 /**
  * Macro: SUCCESS
@@ -40,6 +77,13 @@
  * Determines whether or not the given function result was a success.
  */
 #define SUCCESS(x) ((x) == RESULT_SUCCESS)
+
+/**
+ * Macro: FAILURE
+ *
+ * Indicates whether or not the given function result is a failure.
+ */
+#define FAILURE(x) !SUCCESS(x)
 
 /* Result type for internally defined functions */
 typedef enum ResultT_dummy {
@@ -55,20 +99,19 @@ typedef enum ResultT_dummy {
  * \return RESULT_SUCCESS if the bytes were generated successfully,
  *   RESULT_FAILURE otherwise.
  */
-ResultT GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
+static ResultT
+GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
 {
   // OpenSSL RNG has not been seeded with enough data and is therefore
   // not usable.
   if (RAND_status() == 0)
   {
-    
     return RESULT_FAILURE;
   }
 
   // Attempt to generate random bytes using the OpenSSL RNG
   if (RAND_bytes(out_bytes, in_size) != 1)
   {
-    // TODO: Improve the error-handling here
     return RESULT_FAILURE;
   }
 
@@ -76,16 +119,81 @@ ResultT GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
 }
 
 /**
+ * Computes the ECDSA signature of the given data.
+ *
+ * This method first computes the ECDSA signature of the given data (can be
+ * text or binary data) and outputs both the raw libsecp256k1 signature and
+ * the DER encoding of that signature.
+ *
+ * ECDSA signing involves the following steps:
+ *   1. Compute the 32-byte SHA-256 hash of the given data.
+ *   2. Sign the 32-byte hash using the private key provided.
+ *
+ * \param in_context libsecp256k1 context
+ * \param in_data Data to be signed
+ * \param in_data_len Length of data to be signed
+ * \param in_private_key Private key to be used for signing
+ * \param inout_der_signature_len Originally it should contain the total length
+ *   of the out_der_signature buffer. Upon successful encoding it contains the
+ *   actual length of the DER signature produced.
+ * \param out_signature Signature produced during the signing proccess
+ * \return RESULT_SUCCESS if the hash and signature were computed successfully,
+ *   RESULT_FAILURE if signing failed or DER encoding failed.
+ */
+static ResultT
+SignData(secp256k1_context *in_context,
+         unsigned char *in_data,
+         unsigned long in_data_len,
+         unsigned char *in_private_key,
+         unsigned long *inout_der_signature_len,
+         secp256k1_ecdsa_signature *out_signature,
+         unsigned char *out_der_signature)
+{
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+
+  // Compute the SHA-256 hash of data
+  SHA256(in_data, in_data_len, hash);
+
+  // Sign the hash of the data
+  if (secp256k1_ecdsa_sign(in_context,
+                           out_signature,
+                           hash,
+                           in_private_key,
+                           NULL,
+                           NULL) != 1)
+  {
+    return RESULT_FAILURE;
+  }
+
+  // Produce the der encoding of the signature
+  if (secp256k1_ecdsa_signature_serialize_der(in_context,
+                                              out_der_signature,
+                                              inout_der_signature_len,
+                                              out_signature) == 1)
+  {
+    return RESULT_SUCCESS;
+  }
+
+  return RESULT_FAILURE;
+}
+
+/**
  * Secp256k1.generate_private_key_bytes
  *
  * Generate cryptographically secure 32 byte private key data.
+ *
+ * Raises:
+ *   RuntimeError - If random number generation fails for any reason.
  */
 static VALUE
 Secp256k1_generate_private_key_bytes(VALUE self)
 {
   unsigned char private_key_bytes[32];
 
-  GenerateRandomBytes(private_key_bytes, 32);
+  if (FAILURE(GenerateRandomBytes(private_key_bytes, 32)))
+  {
+    rb_raise(rb_eRuntimeError, "Random number generation failed.");
+  }
 
   return rb_str_new((char*)private_key_bytes, 32);
 }
@@ -93,11 +201,6 @@ Secp256k1_generate_private_key_bytes(VALUE self)
 //
 // Secp256k1::PrivateKey class interface
 //
-
-/* PrivateKey object internal data structure */
-typedef struct PrivateKey_dummy {
-  unsigned char data[32]; // Bytes comprising the private key data
-} PrivateKey;
 
 /* Allocate space for new private key internal data */
 static VALUE
@@ -114,22 +217,90 @@ PrivateKey_alloc(VALUE klass)
   return new_instance;
 }
 
-/* PrivateKey#initialize */
+/**
+ * PrivateKey.generate
+ *
+ * Generates a new random private key.
+ *
+ * \return PrivateKey instance populated with randomly generated key.
+ */
 static VALUE
-PrivateKey_initialize(VALUE self, VALUE bytes)
+PrivateKey_generate(VALUE klass)
+{
+  VALUE result = rb_funcall(klass,
+                            rb_intern("new"),
+                            1,
+                            Secp256k1_generate_private_key_bytes(Secp256k1_module));
+  return result;
+}
+
+/**
+ * PrivateKey#initialize
+ *
+ * Initialize a new private key with the given private key data.
+ *
+ * \param self allocated class instance
+ * \param in_bytes private key data as 32 byte string
+ * \raises ArgumentError If private key data is not 32 bytes long.
+ */
+static VALUE
+PrivateKey_initialize(VALUE self, VALUE in_bytes)
 {
   PrivateKey *private_key;
 
-  Check_Type(bytes, T_STRING);
+  Check_Type(in_bytes, T_STRING);
 
-  if (RSTRING_LEN(bytes) != 32)
+  if (RSTRING_LEN(in_bytes) != 32)
   {
-    rb_raise(rb_eTypeError, "bytes must exactly 32 bytes in length");
+    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
     return self;
   }
 
   Data_Get_Struct(self, PrivateKey, private_key);
-  memcpy(private_key->data, RSTRING_PTR(bytes), 32);
+  memcpy(private_key->data, RSTRING_PTR(in_bytes), 32);
+
+  // Set the PrivateKey.data attribute for later reading
+  rb_iv_set(self, "@data", in_bytes);
+
+  return self;
+}
+
+//
+// Secp256k1::Signature class interface
+//
+
+/* Allocate memory for Signature object */
+static VALUE
+Signature_alloc(VALUE klass)
+{
+  VALUE new_instance;
+  Signature *signature;
+
+  new_instance = Data_Make_Struct(klass,
+                                  Signature,
+                                  NULL,
+                                  free,
+                                  signature);
+  memset(signature, 0, sizeof(Signature));
+
+  return new_instance;
+}
+
+/**
+ * Signature#initialize
+ *
+ * Initializes a signature object from a DER encoded signature.
+ *
+ * \param self
+ * \param in_signature_data DER encoded signature data
+ * \raises ArgumentError if signature was invalid or could not be decoded.
+ */
+static VALUE
+Signature_initialize(VALUE self, VALUE in_der_encoded_sig)
+{
+  Check_Type(in_der_encoded_sig, T_STRING);
+
+  rb_iv_set(self, "@der_encoded", in_der_encoded_sig);
 
   return self;
 }
@@ -137,11 +308,6 @@ PrivateKey_initialize(VALUE self, VALUE bytes)
 //
 // Secp256k1::Context class interface
 //
-
-/* Context object internal data structure */
-typedef struct Context_dummy {
-  secp256k1_context *ctx; // Context used by libsecp256k1 library
-} Context;
 
 /* Deallocate a context when it is garbage collected */
 static void
@@ -168,48 +334,170 @@ Context_alloc(VALUE klass)
   return new_instance;
 }
 
-/* Context#initialize */
+/**
+ * Context#initialize
+ *
+ * Initialize a new libsecp256k1 context.
+ *
+ * \raises RuntimeError if context randomizatino fails.
+ */
 static VALUE
 Context_initialize(VALUE self)
 {
   Context *context;
+  unsigned char seed[32];
 
   Data_Get_Struct(self, Context, context);
 
-  // TODO: Handle structure allocation failure
-
-  // Initialize the libsecp256k1 context data
   context->ctx = secp256k1_context_create(
     SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY
   );
 
-  // TODO: Handle context creation failure
+  // Randomize the context at initialization time rather than before calls so
+  // the same context can be used across threads safely.
+  GenerateRandomBytes(seed, 32);
+  if (secp256k1_context_randomize(context->ctx, seed) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "Randomization of context failed.");
+  }
 
   return self;
+}
+
+/**
+ * Context#generate_key_pair
+ *
+ * Generate a new (public, private) key pair.
+ */
+static VALUE
+Context_generate_key_pair(VALUE self)
+{
+  VALUE private_key;
+  VALUE public_key;
+  VALUE key_pair;
+
+  private_key = PrivateKey_generate(Secp256k1_PrivateKey_class);
+  public_key = rb_funcall(Secp256k1_PublicKey_class,
+                          rb_intern("new"),
+                          2,
+                          self,
+                          private_key);
+  key_pair = rb_funcall(Secp256k1_KeyPair_class,
+                        rb_intern("new"),
+                        2,
+                        public_key,
+                        private_key);
+
+  return key_pair;
+}
+
+/**
+ * Context#sign
+ *
+ * Computes the ECDSA signature of the data using the secp256k1 EC.
+ *
+ * \param self
+ * \param data data to be signed
+ * \raises RuntimeError if signing fails
+ */
+static VALUE
+Context_sign(VALUE self, VALUE private_key_obj, VALUE data)
+{
+  unsigned char *data_ptr;
+  PrivateKey *private_key;
+  Context *context;
+  Signature *signature;
+  unsigned char der_serialized_sig[512];
+  unsigned long der_sig_len;
+  VALUE signature_result;
+
+  Check_Type(data, T_STRING);
+
+  Data_Get_Struct(self, Context, context);
+  Data_Get_Struct(private_key_obj, PrivateKey, private_key);
+  data_ptr = (unsigned char*)StringValuePtr(data);
+  der_sig_len = 512;
+
+  signature_result = Data_Make_Struct(Secp256k1_Signature_class,
+                                      Signature,
+                                      NULL,
+                                      free,
+                                      signature);
+
+  // Attempt to sign the hash of the given data
+  if (SUCCESS(SignData(context->ctx,
+                       data_ptr,
+                       RSTRING_LEN(data),
+                       private_key->data,
+                       &der_sig_len,
+                       &(signature->sig),
+                       der_serialized_sig)))
+  {
+    // Set Signature.der_encoded for posterity.
+    rb_iv_set(signature_result,
+              "@der_encoded",
+              rb_str_new((char*)der_serialized_sig, der_sig_len));
+
+    return signature_result;
+  }
+
+  return Qnil;
+}
+
+static VALUE
+Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message)
+{
+  Context *context;
+  PublicKey *public_key;
+  Signature *signature;
+  unsigned char *message_ptr;
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+
+  Check_Type(in_message, T_STRING);
+
+  Data_Get_Struct(self, Context, context);
+  Data_Get_Struct(in_pubkey, PublicKey, public_key);
+  Data_Get_Struct(in_signature, Signature, signature);
+
+  message_ptr = (unsigned char*)StringValuePtr(in_message);
+  SHA256(message_ptr, RSTRING_LEN(in_message), hash);
+  
+  if (secp256k1_ecdsa_verify(context->ctx,
+                             &(signature->sig),
+                             hash,
+                             &(public_key->pubkey)) == 1)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
 }
 
 //
 // Secp256k1::PublicKey class interface
 //
 
-/* PublicKey internal data structure */
-typedef struct PublicKey_dummy {
-  secp256k1_pubkey pubkey;
-} PublicKey;
-
 static VALUE
 PublicKey_alloc(VALUE klass)
 {
-  VALUE new_instance;
+  VALUE result;
   PublicKey *public_key;
 
-  new_instance = Data_Make_Struct(
-    klass, PublicKey, NULL, free, public_key
-  );
+  result = Data_Make_Struct(klass, PublicKey, NULL, free, public_key);
 
-  return new_instance;
+  return result;
 }
 
+/**
+ * PublicKey#initialize
+ *
+ * Initialize a new public key from the given context and private key.
+ *
+ * \param in_context Context instance to be used in derivation
+ * \param in_private_key PrivateKey to derive public key from
+ * \return PublicKey instance initialized with data
+ * \raises TypeError if private key data is invalid
+ */
 static VALUE
 PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
 {
@@ -229,6 +517,75 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
     return self;
   }
 
+  public_key->context = context;
+
+  return self;
+}
+
+static VALUE
+PublicKey_as_uncompressed(VALUE self)
+{
+  PublicKey *public_key;
+  size_t serialized_pubkey_len = 65;
+  unsigned char serialized_pubkey[65];
+
+  Data_Get_Struct(self, PublicKey, public_key);
+
+  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
+                                serialized_pubkey,
+                                &serialized_pubkey_len,
+                                &(public_key->pubkey),
+                                SECP256K1_EC_UNCOMPRESSED);
+
+  return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
+}
+
+static VALUE
+PublicKey_as_compressed(VALUE self)
+{
+  PublicKey *public_key;
+  size_t serialized_pubkey_len = 65;
+  unsigned char serialized_pubkey[65];
+
+  Data_Get_Struct(self, PublicKey, public_key);
+
+  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
+                                serialized_pubkey,
+                                &serialized_pubkey_len,
+                                &(public_key->pubkey),
+                                SECP256K1_EC_COMPRESSED);
+
+  return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
+}
+
+
+//
+// Secp256k1::KeyPair class interface
+//
+
+static VALUE
+KeyPair_alloc(VALUE klass)
+{
+  VALUE result;
+  KeyPair *key_pair;
+  result = Data_Make_Struct(klass, KeyPair, NULL, free, key_pair);
+
+  return result;
+}
+
+static VALUE
+KeyPair_initialize(VALUE self, VALUE public_key, VALUE private_key)
+{
+  KeyPair *key_pair;
+
+  Data_Get_Struct(self, KeyPair, key_pair);
+
+  key_pair->public_key = public_key;
+  key_pair->private_key = private_key;
+
+  rb_iv_set(self, "@public_key", public_key);
+  rb_iv_set(self, "@private_key", private_key);
+
   return self;
 }
 
@@ -238,16 +595,12 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
 
 void Init_rbsecp256k1()
 {
-  VALUE Secp256k1_module;
-  VALUE Secp256k1_Context_class;
-  VALUE Secp256k1_PrivateKey_class;
-  VALUE Secp256k1_PublicKey_class;
-
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
-  rb_define_singleton_method(
-    Secp256k1_module, "generate_private_key_bytes", Secp256k1_generate_private_key_bytes, 0
-  );
+  rb_define_singleton_method(Secp256k1_module,
+                             "generate_private_key_bytes",
+                             Secp256k1_generate_private_key_bytes,
+                             0);
 
   // Secp256k1::Context
   Secp256k1_Context_class = rb_define_class_under(
@@ -255,19 +608,76 @@ void Init_rbsecp256k1()
   );
   rb_define_alloc_func(Secp256k1_Context_class, Context_alloc);
   rb_define_method(Secp256k1_Context_class,
-                   "initialize", Context_initialize, 0);
+                   "initialize",
+                   Context_initialize,
+                   0);
+  rb_define_method(Secp256k1_Context_class,
+                   "generate_key_pair",
+                   Context_generate_key_pair,
+                   0);
+  rb_define_method(Secp256k1_Context_class,
+                   "sign",
+                   Context_sign,
+                   2);
+  rb_define_method(Secp256k1_Context_class,
+                   "verify",
+                   Context_verify,
+                   3);
+
+  // Secp256k1::KeyPair
+  Secp256k1_KeyPair_class = rb_define_class_under(Secp256k1_module,
+                                                  "KeyPair",
+                                                  rb_cObject);
+  rb_define_alloc_func(Secp256k1_KeyPair_class, KeyPair_alloc);
+  rb_define_attr(Secp256k1_KeyPair_class, "public_key", 1, 0);
+  rb_define_attr(Secp256k1_KeyPair_class, "private_key", 1, 0);
+  rb_define_method(Secp256k1_KeyPair_class,
+                   "initialize",
+                   KeyPair_initialize,
+                   2);
+
+  // Secp256k1::PublicKey
+  Secp256k1_PublicKey_class = rb_define_class_under(Secp256k1_module,
+                                                    "PublicKey",
+                                                    rb_cObject);
+  rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);
+  rb_define_method(Secp256k1_PublicKey_class,
+                   "initialize",
+                   PublicKey_initialize,
+                   2);
+  rb_define_method(Secp256k1_PublicKey_class,
+                   "as_compressed",
+                   PublicKey_as_compressed,
+                   0);
+  rb_define_method(Secp256k1_PublicKey_class,
+                   "as_uncompressed",
+                   PublicKey_as_uncompressed,
+                   0);
 
   // Secp256k1::PrivateKey
   Secp256k1_PrivateKey_class = rb_define_class_under(
     Secp256k1_module, "PrivateKey", rb_cObject
   );
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
-  rb_define_method(Secp256k1_PrivateKey_class, "initialize", PrivateKey_initialize, 1);
+  rb_define_singleton_method(Secp256k1_PrivateKey_class,
+                             "generate",
+                             PrivateKey_generate,
+                             0);
+  rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
+  rb_define_method(Secp256k1_PrivateKey_class,
+                   "initialize",
+                   PrivateKey_initialize,
+                   1);
 
-  // Secp256k1::PublicKey
-  Secp256k1_PublicKey_class = rb_define_class_under(
-    Secp256k1_module, "PublicKey", rb_cObject
-  );
-  rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);
-  rb_define_method(Secp256k1_PublicKey_class, "initialize", PublicKey_initialize, 2);
+    // Secp256k1::Signature
+  Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
+                                                    "Signature",
+                                                    rb_cObject);
+  rb_define_alloc_func(Secp256k1_Signature_class, Signature_alloc);
+  rb_define_attr(Secp256k1_Signature_class, "der_encoded", 1, 0);
+  rb_define_method(Secp256k1_Signature_class,
+                   "initialize",
+                   Signature_initialize,
+                   1);
+
 }
