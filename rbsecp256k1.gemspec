@@ -7,6 +7,7 @@ Gem::Specification.new do |s|
   s.summary = 'Compiled, native ruby interfaces to libsecp256k1'
   s.license = 'MIT'
   s.authors = ['Eric Scrivner']
+  s.homepage = 'https://github.com/etscrivner/rbsecp256k1'
 
   s.files = Dir['lib/**/**.rb'] + %w[ext/rbsecp256k1/rbsecp256k1.c ext/rbsecp256k1/extconf.rb Rakefile]
   s.require_paths = ['ext', 'lib']
