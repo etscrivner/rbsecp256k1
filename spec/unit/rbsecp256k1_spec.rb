@@ -38,7 +38,8 @@ RSpec.describe Secp256k1 do
 
     it 'can load public key from uncompressed key' do
       public_key_uncompressed = context.public_key_from_data(
-        key_pair.public_key.as_uncompressed)
+        key_pair.public_key.as_uncompressed
+      )
 
       expect(public_key_uncompressed.as_uncompressed.bytes)
         .to eq(key_pair.public_key.as_uncompressed.bytes)
@@ -46,7 +47,8 @@ RSpec.describe Secp256k1 do
 
     it 'can load public key from compressed key' do
       public_key_compressed = context.public_key_from_data(
-        key_pair.public_key.as_uncompressed)
+        key_pair.public_key.as_uncompressed
+      )
 
       expect(public_key_compressed.as_compressed.bytes)
         .to eq(key_pair.public_key.as_compressed.bytes)

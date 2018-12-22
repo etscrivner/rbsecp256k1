@@ -1,3 +1,4 @@
+# Wraps libsecp256k1 in a ruby module and provides object interfaces.
 module Secp256k1
 end
 

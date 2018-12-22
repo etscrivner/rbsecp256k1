@@ -1,4 +1,5 @@
 module Secp256k1
+  # Contains utility methods that complement the functionality of the library.
   module Util
     # Converts a binary string to a hex string.
     #

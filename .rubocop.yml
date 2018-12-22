@@ -1,0 +1,8 @@
+Metrings/LineLength:
+  Max: 250
+
+Metrics/BlockLength:
+  Max: 1000
+
+Style/StringLiterals:
+  Enabled: false

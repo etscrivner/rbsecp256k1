@@ -1,4 +1,4 @@
-.PHONY: setup build test gem install uninstall clean
+.PHONY: setup build test lint gem install uninstall clean
 
 setup:
 	bundle install
@@ -8,6 +8,9 @@ build:
 
 test: build
 	bundle exec rspec
+
+lint:
+	bundle exec rubocop
 
 gem:
 	gem build rbsecp256k1.gemspec
