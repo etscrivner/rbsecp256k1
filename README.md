@@ -1,5 +1,7 @@
 # rbsecp256k1
 
+![build status](https://travis-ci.com/etscrivner/rbsecp256k1.svg?branch=master)
+
 Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
 
 ## Requirements
