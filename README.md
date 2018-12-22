@@ -1,10 +1,10 @@
 # rbsecp256k1
 
-Ruby extension gem interface for libsecp256k1.
+Ruby extension gem interface for [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
 
 ## Requirements
 
-You'll need to have compiled and installed libsecp256k1 from source. You'll
+You'll need to have compiled and installed [libsecp256k1](https://github.com/bitcoin-core/secp256k1) from source. You'll
 also need the OpenSSL development bindings.
 
 ## Examples
