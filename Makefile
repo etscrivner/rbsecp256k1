@@ -1,3 +1,11 @@
+# Retrieve operating system name
+OS=$(shell uname -s)
+
+# On macOS we need to prefix to homebrew OpenSSL path before building
+ifeq ($(OS),Darwin)
+	COMPILE_PREFIX=PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
+endif
+
 .PHONY: setup build test lint gem install uninstall clean
 
 deps:
@@ -7,7 +15,7 @@ setup:
 	bundle install
 
 build:
-	bundle exec rake compile
+	$(COMPILE_PREFIX) bundle exec rake compile
 
 test: build
 	bundle exec rspec
