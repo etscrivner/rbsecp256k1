@@ -1,5 +1,8 @@
 .PHONY: setup build test lint gem install uninstall clean
 
+deps:
+	cd vendor/secp256k1 && ./autogen.sh && ./configure && make && sudo make install
+
 setup:
 	bundle install
 
