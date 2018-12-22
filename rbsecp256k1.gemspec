@@ -4,7 +4,7 @@ require 'rbsecp256k1/version'
 Gem::Specification.new do |s|
   s.name    = 'rbsecp256k1'
   s.version = Secp256k1::VERSION
-  s.summary = 'Compiled, native ruby interfaces to libsecp256k1'
+  s.summary = 'Compiled, native ruby extension interfaces to libsecp256k1'
   s.license = 'MIT'
   s.authors = ['Eric Scrivner']
   s.homepage = 'https://github.com/etscrivner/rbsecp256k1'
