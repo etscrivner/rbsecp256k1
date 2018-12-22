@@ -16,11 +16,12 @@ require 'rbsecp256k1'
 ctx = Secp256k1::Context.new
 key_pair = ctx.generate_key_pair
 
-puts key_pair.public_key.as_uncompressed
-puts key_pair.public_key.as_compressed
+puts Secp256k1::Util.bin_to_hex(key_pair.public_key.as_uncompressed)
+puts Secp256k1::Util.bin_to_hex(key_pair.public_key.as_compressed)
 
 sig = ctx.sign(key_pair.private_key, "test message")
-puts sig.der_encoded
+puts Secp256k1::Util.bin_to_hex(sig.der_encoded)
+
 if ctx.verify(sig, key_pair.public_key, "test message")
   puts "Valid"
 else
@@ -35,11 +36,11 @@ require 'rbsecp256k1'
 ctx = Secp256k1::Context.new
 key_pair = ctx.key_pair_from_private_key("yuyY\xC8\v\x9E\xBEu\xB9\x02\xEA\xA5\x82V\xAC\xAA9\xA0\xA4U\"z\x99,J\x90\xADk8\xB2\xE1")
 
-puts key_pair.public_key.as_uncompressed
-puts key_pair.public_key.as_compressed
+puts Secp256k1::Util.bin_to_hex(key_pair.public_key.as_uncompressed)
+puts Secp256k1::Util.bin_to_hex(key_pair.public_key.as_compressed)
 
 sig = ctx.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\x02 \t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f")
-if ctx.verify_hash(sig, key_pair.public_key, ".. Binary SHA256 Hash ..")
+if ctx.verify(sig, key_pair.public_key, "test message")
   puts "Valid"
 else
   puts "Invalid"

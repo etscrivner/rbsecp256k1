@@ -136,6 +136,7 @@ GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
  * \param inout_der_signature_len Originally it should contain the total length
  *   of the out_der_signature buffer. Upon successful encoding it contains the
  *   actual length of the DER signature produced.
+ * \param out_der_signature Buffer that will contain DER encoded signature
  * \param out_signature Signature produced during the signing proccess
  * \return RESULT_SUCCESS if the hash and signature were computed successfully,
  *   RESULT_FAILURE if signing failed or DER encoding failed.
@@ -146,8 +147,8 @@ SignData(secp256k1_context *in_context,
          unsigned long in_data_len,
          unsigned char *in_private_key,
          unsigned long *inout_der_signature_len,
-         secp256k1_ecdsa_signature *out_signature,
-         unsigned char *out_der_signature)
+         unsigned char *out_der_signature,
+         secp256k1_ecdsa_signature *out_signature)
 {
   unsigned char hash[SHA256_DIGEST_LENGTH];
 
@@ -292,7 +293,7 @@ Signature_alloc(VALUE klass)
  * Initializes a signature object from a DER encoded signature.
  *
  * \param self
- * \param in_signature_data DER encoded signature data
+ * \param in_der_encoded_sig DER encoded signature data
  * \raises ArgumentError if signature was invalid or could not be decoded.
  */
 static VALUE
@@ -392,16 +393,141 @@ Context_generate_key_pair(VALUE self)
 }
 
 /**
+ * Context#public_key_from_data
+ *
+ * Loads a public key from compressed or uncompressed binary data.
+ *
+ * \param self
+ * \param in_public_key_data Compressed or uncompressed binary public key data.
+ */
+static VALUE
+Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
+{
+  Context *context;
+  PublicKey *public_key;
+  unsigned char *public_key_data;
+  VALUE result;
+
+  Check_Type(in_public_key_data, T_STRING);
+
+  Data_Get_Struct(self, Context, context);
+  public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
+  result = Data_Make_Struct(Secp256k1_PublicKey_class,
+                            PublicKey,
+                            NULL,
+                            free,
+                            public_key);
+  public_key->context = context;
+
+  if (secp256k1_ec_pubkey_parse(context->ctx,
+                                &(public_key->pubkey),
+                                public_key_data,
+                                RSTRING_LEN(in_public_key_data)) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "Invalid public key data");
+  }
+
+  return result;
+}
+
+/**
+ * Context#key_pair_from_private_key
+ *
+ * Converts a binary private key into a key pair
+ *
+ * \param self
+ * \param in_private_key_data Binary private key data to be used
+ * \return A KeyPair initialized from the given private key data
+ * \raises ArgumentError if the private key data is invalid or key derivation
+ *   fails.
+ */
+static VALUE
+Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
+{
+  Context *context;
+  VALUE public_key;
+  VALUE private_key;
+  VALUE key_pair;
+  unsigned char *private_key_data;
+
+  // TODO: Move verification into PrivateKey_initialize?
+  // Verify secret key data before attempting to recover key pair
+  Data_Get_Struct(self, Context, context);
+  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
+
+  if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "Invalid private key data.");
+  }
+
+  private_key = rb_funcall(Secp256k1_PrivateKey_class,
+                           rb_intern("new"),
+                           1,
+                           in_private_key_data);
+  public_key = rb_funcall(Secp256k1_PublicKey_class,
+                          rb_intern("new"),
+                          2,
+                          self,
+                          private_key);
+  key_pair = rb_funcall(Secp256k1_KeyPair_class,
+                        rb_intern("new"),
+                        2,
+                        public_key,
+                        private_key);
+
+  return key_pair;
+}
+
+/**
+ * Context#signature_from_der_encoded
+ *
+ * Converts a DER encoded signature into a Secp256k1::Signature object.
+ *
+ * \param self
+ * \param in_der_encoded_signature DER encoded signature as a binary string
+ */
+static VALUE
+Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
+{
+  Context *context;
+  Signature *signature;
+  VALUE signature_result;
+  unsigned char *signature_data;
+
+  Check_Type(in_der_encoded_signature, T_STRING);
+
+  Data_Get_Struct(self, Context, context);
+  signature_data = (unsigned char*)StringValuePtr(in_der_encoded_signature);
+
+  signature_result = Data_Make_Struct(Secp256k1_Signature_class,
+                                      Signature,
+                                      NULL,
+                                      free,
+                                      signature);
+
+  if (secp256k1_ecdsa_signature_parse_der(context->ctx,
+                                          &(signature->sig),
+                                          signature_data,
+                                          RSTRING_LEN(in_der_encoded_signature)) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "Invalid DER encoded signature.");
+  }
+
+  return signature_result;
+}
+
+/**
  * Context#sign
  *
  * Computes the ECDSA signature of the data using the secp256k1 EC.
  *
  * \param self
- * \param data data to be signed
+ * \param in_private_key Private key to use for signing
+ * \param in_data Data to be signed
  * \raises RuntimeError if signing fails
  */
 static VALUE
-Context_sign(VALUE self, VALUE private_key_obj, VALUE data)
+Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
 {
   unsigned char *data_ptr;
   PrivateKey *private_key;
@@ -411,11 +537,11 @@ Context_sign(VALUE self, VALUE private_key_obj, VALUE data)
   unsigned long der_sig_len;
   VALUE signature_result;
 
-  Check_Type(data, T_STRING);
+  Check_Type(in_data, T_STRING);
 
   Data_Get_Struct(self, Context, context);
-  Data_Get_Struct(private_key_obj, PrivateKey, private_key);
-  data_ptr = (unsigned char*)StringValuePtr(data);
+  Data_Get_Struct(in_private_key, PrivateKey, private_key);
+  data_ptr = (unsigned char*)StringValuePtr(in_data);
   der_sig_len = 512;
 
   signature_result = Data_Make_Struct(Secp256k1_Signature_class,
@@ -427,11 +553,11 @@ Context_sign(VALUE self, VALUE private_key_obj, VALUE data)
   // Attempt to sign the hash of the given data
   if (SUCCESS(SignData(context->ctx,
                        data_ptr,
-                       RSTRING_LEN(data),
+                       RSTRING_LEN(in_data),
                        private_key->data,
                        &der_sig_len,
-                       &(signature->sig),
-                       der_serialized_sig)))
+                       der_serialized_sig,
+                       &(signature->sig))))
   {
     // Set Signature.der_encoded for posterity.
     rb_iv_set(signature_result,
@@ -441,9 +567,20 @@ Context_sign(VALUE self, VALUE private_key_obj, VALUE data)
     return signature_result;
   }
 
-  return Qnil;
+  rb_raise(rb_eRuntimeError, "Unable to compute signature");
 }
 
+/**
+ * Context#verify
+ *
+ * Verifies that the signature by the holder of public key on message.
+ *
+ * \param self
+ * \param in_signature Signature to be verified
+ * \param in_pubkey Public key to verify signature against
+ * \param in_message Message to verify signature of
+ * \return Qtrue if the signature is valid, Qfalse otherwise.
+ */
 static VALUE
 Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message)
 {
@@ -522,6 +659,7 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
   return self;
 }
 
+/* PublicKey#as_uncompressed */
 static VALUE
 PublicKey_as_uncompressed(VALUE self)
 {
@@ -530,6 +668,11 @@ PublicKey_as_uncompressed(VALUE self)
   unsigned char serialized_pubkey[65];
 
   Data_Get_Struct(self, PublicKey, public_key);
+
+  if (public_key->context == NULL || public_key->context->ctx == NULL)
+  {
+    rb_raise(rb_eRuntimeError, "Public key context is NULL");
+  }
 
   secp256k1_ec_pubkey_serialize(public_key->context->ctx,
                                 serialized_pubkey,
@@ -540,6 +683,7 @@ PublicKey_as_uncompressed(VALUE self)
   return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
 }
 
+/* PublicKey#as_compressed */
 static VALUE
 PublicKey_as_compressed(VALUE self)
 {
@@ -616,6 +760,14 @@ void Init_rbsecp256k1()
                    Context_generate_key_pair,
                    0);
   rb_define_method(Secp256k1_Context_class,
+                   "key_pair_from_private_key",
+                   Context_key_pair_from_private_key,
+                   1);
+  rb_define_method(Secp256k1_Context_class,
+                   "public_key_from_data",
+                   Context_public_key_from_data,
+                   1);
+  rb_define_method(Secp256k1_Context_class,
                    "sign",
                    Context_sign,
                    2);
@@ -623,6 +775,10 @@ void Init_rbsecp256k1()
                    "verify",
                    Context_verify,
                    3);
+  rb_define_method(Secp256k1_Context_class,
+                   "signature_from_der_encoded",
+                   Context_signature_from_der_encoded,
+                   1);
 
   // Secp256k1::KeyPair
   Secp256k1_KeyPair_class = rb_define_class_under(Secp256k1_module,
@@ -669,7 +825,7 @@ void Init_rbsecp256k1()
                    PrivateKey_initialize,
                    1);
 
-    // Secp256k1::Signature
+  // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
                                                     "Signature",
                                                     rb_cObject);
