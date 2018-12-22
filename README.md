@@ -7,7 +7,8 @@ Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/s
 ## Requirements
 
 You'll need to have compiled and installed [libsecp256k1](https://github.com/bitcoin-core/secp256k1) from source. You'll
-also need the OpenSSL development bindings.
+also need the OpenSSL development bindings. More info is available in the Linux
+and Mac OS sections under "Development" below.
 
 ## Examples
 
@@ -98,10 +99,23 @@ make uninstall
 
 ### Linux
 
+Dependencies for building library and its dependencies:
+
+```
+sudo apt-get install build-essential automake pkg-config libtool \
+  libffi-dev libssl-dev libgmp-dev python-dev
+```
+
 If you have installed libsecp256k1 but the gem cannot find it. Ensure you have
 run `ldconfig` so that your library load paths have been updated.
 
 ### Mac OS
+
+Dependencies for building library and its dependencies:
+
+```
+brew install libtool pkg-config gmp libffi
+```
 
 When running the `ruby extconf.rb` step, if building on Mac OS with openssl
 installed via homebrew it may be helpful to specify the location of your openssl
