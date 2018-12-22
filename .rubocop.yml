@@ -1,4 +1,4 @@
-Metrings/LineLength:
+Metrics/LineLength:
   Max: 250
 
 Metrics/BlockLength:
