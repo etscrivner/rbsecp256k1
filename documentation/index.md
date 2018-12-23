@@ -8,7 +8,7 @@ Classes and Modules
 
 Classes                          | Utilities
 :--------------------------------|:--------------------------------
-[Context](context.md)            | [Utils](utils.md)
+[Context](context.md)            | [Util](util.md)
 [KeyPair](key_pair.md)           |
 [PublicKey](public_key.md)       |
 [PrivateKey](private_key.md)     |

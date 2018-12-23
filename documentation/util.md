@@ -1,9 +1,9 @@
 [Index](index.md)
 
-Secp256k1::Utils
-================
+Secp256k1::Util
+===============
 
-Secp256k1::Utils in a module containing generally useful methods for using the library.
+Secp256k1::Util in a module containing generally useful methods for using the library.
 
 Class Methods
 -------------
