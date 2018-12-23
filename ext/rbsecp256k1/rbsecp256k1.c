@@ -69,6 +69,7 @@ typedef struct PrivateKey_dummy {
 
 typedef struct Signature_dummy {
   secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature.
+  Context *context;
 } Signature;
 
 /**
@@ -122,8 +123,7 @@ GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
  * Computes the ECDSA signature of the given data.
  *
  * This method first computes the ECDSA signature of the given data (can be
- * text or binary data) and outputs both the raw libsecp256k1 signature and
- * the DER encoding of that signature.
+ * text or binary data) and outputs both the raw libsecp256k1 signature.
  *
  * ECDSA signing involves the following steps:
  *   1. Compute the 32-byte SHA-256 hash of the given data.
@@ -133,10 +133,6 @@ GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
  * \param in_data Data to be signed
  * \param in_data_len Length of data to be signed
  * \param in_private_key Private key to be used for signing
- * \param inout_der_signature_len Originally it should contain the total length
- *   of the out_der_signature buffer. Upon successful encoding it contains the
- *   actual length of the DER signature produced.
- * \param out_der_signature Buffer that will contain DER encoded signature
  * \param out_signature Signature produced during the signing proccess
  * \return RESULT_SUCCESS if the hash and signature were computed successfully,
  *   RESULT_FAILURE if signing failed or DER encoding failed.
@@ -146,8 +142,6 @@ SignData(secp256k1_context *in_context,
          unsigned char *in_data,
          unsigned long in_data_len,
          unsigned char *in_private_key,
-         unsigned long *inout_der_signature_len,
-         unsigned char *out_der_signature,
          secp256k1_ecdsa_signature *out_signature)
 {
   unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -161,16 +155,7 @@ SignData(secp256k1_context *in_context,
                            hash,
                            in_private_key,
                            NULL,
-                           NULL) != 1)
-  {
-    return RESULT_FAILURE;
-  }
-
-  // Produce the der encoding of the signature
-  if (secp256k1_ecdsa_signature_serialize_der(in_context,
-                                              out_der_signature,
-                                              inout_der_signature_len,
-                                              out_signature) == 1)
+                           NULL) == 1)
   {
     return RESULT_SUCCESS;
   }
@@ -288,22 +273,56 @@ Signature_alloc(VALUE klass)
 }
 
 /**
- * Signature#initialize
- *
- * Initializes a signature object from a DER encoded signature.
+ * Signature#der_encoded
  *
  * \param self
- * \param in_der_encoded_sig DER encoded signature data
- * \raises ArgumentError if signature was invalid or could not be decoded.
+ * \return DER encoded version of this signature
  */
 static VALUE
-Signature_initialize(VALUE self, VALUE in_der_encoded_sig)
+Signature_der_encoded(VALUE self)
 {
-  Check_Type(in_der_encoded_sig, T_STRING);
+  Signature *signature;
+  unsigned long der_signature_len;
+  unsigned char der_signature[512];
 
-  rb_iv_set(self, "@der_encoded", in_der_encoded_sig);
+  Data_Get_Struct(self, Signature, signature);
 
-  return self;
+  der_signature_len = 512;
+  if (secp256k1_ecdsa_signature_serialize_der(signature->context->ctx,
+                                              der_signature,
+                                              &der_signature_len,
+                                              &(signature->sig)) == 1)
+  {
+    return rb_str_new((char*)der_signature, der_signature_len);
+  }
+
+  rb_raise(rb_eRuntimeError, "Could not compute DER encoded signature");
+}
+
+/**
+ * Signature#compact
+ *
+ * Returns the compact (64-byte) representation of this signature.
+ *
+ * \param self
+ * \return Compact encoding of this signature
+ */
+static VALUE
+Signature_compact(VALUE self)
+{
+  Signature *signature;
+  unsigned char compact_signature[65];
+
+  Data_Get_Struct(self, Signature, signature);
+
+  if (secp256k1_ecdsa_signature_serialize_compact(signature->context->ctx,
+                                                  compact_signature,
+                                                  &(signature->sig)) == 1)
+  {
+    return rb_str_new((char*)compact_signature, 65);
+  }
+
+  rb_raise(rb_eRuntimeError, "Unable to compute compact signature");
 }
 
 //
@@ -513,6 +532,47 @@ Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
     rb_raise(rb_eRuntimeError, "Invalid DER encoded signature.");
   }
 
+  signature->context = context;
+  return signature_result;
+}
+
+/**
+ * Context#signature_from_compact
+ *
+ * Deserializes a Signature from 64-byte compact signature data.
+ *
+ * \param self
+ * \param in_compact_signature Compact signature to deserialize
+ * \return Signature object deserialized from compact signature.
+ * \raises RuntimeError if signature deserialization fails
+ */
+static VALUE
+Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
+{
+  Context *context;
+  Signature *signature;
+  VALUE signature_result;
+  unsigned char *signature_data;
+
+  Check_Type(in_compact_signature, T_STRING);
+
+  Data_Get_Struct(self, Context, context);
+  signature_data = (unsigned char*)StringValuePtr(in_compact_signature);
+
+  signature_result = Data_Make_Struct(Secp256k1_Signature_class,
+                                      Signature,
+                                      NULL,
+                                      free,
+                                      signature);
+
+  if (secp256k1_ecdsa_signature_parse_compact(context->ctx,
+                                              &(signature->sig),
+                                              signature_data) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "Invalid compact signature.");
+  }
+
+  signature->context = context;
   return signature_result;
 }
 
@@ -533,8 +593,6 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
   PrivateKey *private_key;
   Context *context;
   Signature *signature;
-  unsigned char der_serialized_sig[512];
-  unsigned long der_sig_len;
   VALUE signature_result;
 
   Check_Type(in_data, T_STRING);
@@ -542,7 +600,6 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
   Data_Get_Struct(self, Context, context);
   Data_Get_Struct(in_private_key, PrivateKey, private_key);
   data_ptr = (unsigned char*)StringValuePtr(in_data);
-  der_sig_len = 512;
 
   signature_result = Data_Make_Struct(Secp256k1_Signature_class,
                                       Signature,
@@ -555,15 +612,9 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
                        data_ptr,
                        RSTRING_LEN(in_data),
                        private_key->data,
-                       &der_sig_len,
-                       der_serialized_sig,
                        &(signature->sig))))
   {
-    // Set Signature.der_encoded for posterity.
-    rb_iv_set(signature_result,
-              "@der_encoded",
-              rb_str_new((char*)der_serialized_sig, der_sig_len));
-
+    signature->context = context;
     return signature_result;
   }
 
@@ -779,6 +830,10 @@ void Init_rbsecp256k1()
                    "signature_from_der_encoded",
                    Context_signature_from_der_encoded,
                    1);
+  rb_define_method(Secp256k1_Context_class,
+                   "signature_from_compact",
+                   Context_signature_from_compact,
+                   1);
 
   // Secp256k1::KeyPair
   Secp256k1_KeyPair_class = rb_define_class_under(Secp256k1_module,
@@ -830,10 +885,12 @@ void Init_rbsecp256k1()
                                                     "Signature",
                                                     rb_cObject);
   rb_define_alloc_func(Secp256k1_Signature_class, Signature_alloc);
-  rb_define_attr(Secp256k1_Signature_class, "der_encoded", 1, 0);
   rb_define_method(Secp256k1_Signature_class,
-                   "initialize",
-                   Signature_initialize,
-                   1);
-
+                   "der_encoded",
+                   Signature_der_encoded,
+                   0);
+  rb_define_method(Secp256k1_Signature_class,
+                   "compact",
+                   Signature_compact,
+                   0);
 }
