@@ -84,10 +84,17 @@ RSpec.describe Secp256k1 do
       expect(signature).to be_a(Secp256k1::Signature)
     end
 
-    it 'contains the DER encoded signature data' do
+    it 'produces the DER encoded signature data' do
       signature = context.sign(key_pair.private_key, binary_data)
 
       expect(signature.der_encoded).to be_a(String)
+    end
+
+    it 'produces the compact encoded signature' do
+      signature = context.sign(key_pair.private_key, binary_data)
+
+      expect(signature.compact).to be_a(String)
+      expect(signature.compact.length).to eq 65
     end
 
     it 'can load a DER encoded signature from binary data' do
@@ -98,6 +105,13 @@ RSpec.describe Secp256k1 do
       expect(signature).to be_a(Secp256k1::Signature)
       expect(context.verify(signature, key_pair.public_key, "test message"))
         .to be true
+    end
+
+    it 'can load compact encoded signature from binary data' do
+      signature1 = context.sign(key_pair.private_key, binary_data)
+      signature2 = context.signature_from_compact(signature1.compact)
+
+      expect(signature2.der_encoded.bytes).to eq(signature1.der_encoded.bytes)
     end
   end
 
