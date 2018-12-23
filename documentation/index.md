@@ -23,7 +23,7 @@ efficient.
 
 **[KeyPair](key_pair.md)** is a Secp256k1 elliptic-curve key pair.
 
-**[PublicKey](public_key.md)** is a SECP256k1 public key. It can come in either
+**[PublicKey](public_key.md)** is a Secp256k1 public key. It can come in either
 compressed or uncompressed format.
 
 **[PrivateKey](private_key.md)** is a 64-byte Secp256k1 private key.
