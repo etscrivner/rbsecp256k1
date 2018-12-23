@@ -1,6 +1,6 @@
 # rbsecp256k1
 
-[![Build Status](https://travis-ci.com/etscrivner/rbsecp256k1.svg?branch=master)](https://travis-ci.com/etscrivner/rbsecp256k1)
+[![Build Status](https://travis-ci.com/etscrivner/rbsecp256k1.svg?branch=master)](https://travis-ci.com/etscrivner/rbsecp256k1) [![Gem Version](https://badge.fury.io/rb/rbsecp256k1.svg)](https://badge.fury.io/rb/rbsecp256k1)
 
 Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
 
