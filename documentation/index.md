@@ -21,12 +21,12 @@ Glossary
 pre-computed tables and values to make ECDSA signing and verification more
 efficient.
 
-**[KeyPair](key_pair.md)** is a SECP256k1 elliptic-curve key pair.
+**[KeyPair](key_pair.md)** is a Secp256k1 elliptic-curve key pair.
 
 **[PublicKey](public_key.md)** is a SECP256k1 public key. It can come in either
 compressed or uncompressed format.
 
-**[PrivateKey](private_key.md)** is a 64-byte SECP256k1 private key.
+**[PrivateKey](private_key.md)** is a 64-byte Secp256k1 private key.
 
 **[Signature](signature.md)** is an ECDSA signature of the SHA-256 message hash
 of a piece of data.
