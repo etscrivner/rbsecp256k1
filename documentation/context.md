@@ -37,9 +37,9 @@ is expected to be a binary string.
 
 #### sign(private_key, data)
 
-Signs the given `data` using `private_key` and returns a new [Signature](signature.md).
-The `private_key` is expected to be a [PrivateKey](private_key.md) object and
-`data` can be either a binary string or text.
+Signs the SHA-256 hash of the given `data` using `private_key` and returns a
+new [Signature](signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md)
+object and `data` can be either a binary string or text.
 
 #### signature_from_compact(compact_signature)
 
