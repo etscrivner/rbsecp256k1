@@ -9,7 +9,6 @@
 // * libsecp256k1
 // * openssl
 #include <ruby.h>
-#include <stdio.h>
 
 #include <openssl/rand.h>
 #include <openssl/sha.h>
@@ -83,6 +82,7 @@ Context_free(void* in_context)
   Context *context = (Context*)in_context;
 
   secp256k1_context_destroy(context->ctx);
+  xfree(context);
 }
 
 static const rb_data_type_t Context_DataType = {
@@ -496,9 +496,9 @@ Context_alloc(VALUE klass)
   Context *context;
 
   context = ALLOC(Context);
+  MEMZERO(context, Context, 1);
 
   new_instance = TypedData_Wrap_Struct(klass, &Context_DataType, context);
-  context->ctx = NULL;
 
   return new_instance;
 }
@@ -582,8 +582,8 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
 
   public_key = ALLOC(PublicKey);
-  result = TypedData_Wrap_Struct(Secp256k1_PublicKey_class, &PublicKey_DataType, public_key);
   public_key->context = context;
+  result = TypedData_Wrap_Struct(Secp256k1_PublicKey_class, &PublicKey_DataType, public_key);
 
   if (secp256k1_ec_pubkey_parse(context->ctx,
                                 &(public_key->pubkey),
