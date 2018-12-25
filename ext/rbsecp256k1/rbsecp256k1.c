@@ -42,7 +42,7 @@
 // how the Ruby project builds its own extension gems.
 static VALUE Secp256k1_module;
 static VALUE Secp256k1_Context_class;
-static VALUE Secp256k1_KeyPair_class = Qnil;
+static VALUE Secp256k1_KeyPair_class;
 static VALUE Secp256k1_PublicKey_class;
 static VALUE Secp256k1_PrivateKey_class;
 static VALUE Secp256k1_Signature_class;
@@ -616,11 +616,11 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   VALUE key_pair;
   unsigned char *private_key_data;
 
-  // TODO: Move verification into PrivateKey_initialize?
-  // Verify secret key data before attempting to recover key pair
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
 
+  // TODO: Move verification into PrivateKey_initialize?
+  // Verify secret key data before attempting to recover key pair
   if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
   {
     rb_raise(rb_eRuntimeError, "Invalid private key data.");

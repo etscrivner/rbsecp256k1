@@ -1,3 +1,5 @@
+.PHONY: setup build test lint gem install uninstall clean
+
 # Retrieve operating system name
 OS=$(shell uname -s)
 
@@ -6,7 +8,7 @@ ifeq ($(OS),Darwin)
 	COMPILE_PREFIX=PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
 endif
 
-.PHONY: setup build test lint gem install uninstall clean
+all: test
 
 deps:
 	cd vendor/secp256k1 && ./autogen.sh && ./configure && make && sudo make install

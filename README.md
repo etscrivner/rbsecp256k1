@@ -54,6 +54,23 @@ end
 
 ## Development
 
+### Cloning
+
+To clone the repository and its submodules you'll need to the following:
+
+```
+git clone --recurse-submodules git@github.com:etscrivner/rbsecp256k1.git
+```
+
+### Installing libsecp256k1
+
+libsecp256k1 is vendored into this repository as a submodule. To build and
+install it you can run:
+
+```
+make deps
+```
+
 ### Setup
 
 Development is largely facilitated by a makefile. After download you should run
@@ -108,7 +125,7 @@ sudo apt-get install build-essential automake pkg-config libtool \
   libffi-dev libssl-dev libgmp-dev python-dev
 ```
 
-If you have installed libsecp256k1 but the gem cannot find it. Ensure you have
+**NOTE:** If you have installed libsecp256k1 but the gem cannot find it. Ensure you have
 run `ldconfig` so that your library load paths have been updated.
 
 ### Mac OS
