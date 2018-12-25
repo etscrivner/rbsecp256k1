@@ -27,11 +27,8 @@ puts Secp256k1::Util.bin_to_hex(key_pair.public_key.compressed)
 sig = ctx.sign(key_pair.private_key, "test message")
 puts Secp256k1::Util.bin_to_hex(sig.der_encoded)
 
-if ctx.verify(sig, key_pair.public_key, "test message")
-  puts "Valid"
-else
-  puts "Invalid"
-end
+ctx.verify(sig, key_pair.public_key, "test message")
+# => true
 ```
 
 Similarly you can start with existing key and signature data:
@@ -45,11 +42,8 @@ sig = ctx.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE
 puts Secp256k1::Util.bin_to_hex(public_key.uncompressed)
 puts Secp256k1::Util.bin_to_hex(public_key.compressed)
 
-if ctx.verify(sig, public_key, "test message")
-  puts "Valid"
-else
-  puts "Invalid"
-end
+ctx.verify(sig, public_key, "test message")
+# => true
 ```
 
 ## Development
@@ -125,8 +119,8 @@ sudo apt-get install build-essential automake pkg-config libtool \
   libffi-dev libssl-dev libgmp-dev python-dev
 ```
 
-**NOTE:** If you have installed libsecp256k1 but the gem cannot find it. Ensure you have
-run `ldconfig` so that your library load paths have been updated.
+**NOTE:** If you have installed libsecp256k1 but the gem cannot find it. Ensure
+you have run `ldconfig` so that your library load paths have been updated.
 
 ### Mac OS
 
