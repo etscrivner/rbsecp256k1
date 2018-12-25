@@ -43,7 +43,7 @@
 // how the Ruby project builds its own extension gems.
 static VALUE Secp256k1_module;
 static VALUE Secp256k1_Context_class;
-static VALUE Secp256k1_KeyPair_class;
+static VALUE Secp256k1_KeyPair_class = Qnil;
 static VALUE Secp256k1_PublicKey_class;
 static VALUE Secp256k1_PrivateKey_class;
 static VALUE Secp256k1_Signature_class;
@@ -71,6 +71,90 @@ typedef struct Signature_dummy {
   secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature.
   Context *context;
 } Signature;
+
+// Typed data definitions
+
+// Context
+static void
+Context_free(void* in_context)
+{
+  Context *context = (Context*)in_context;
+
+  secp256k1_context_destroy(context->ctx);
+}
+
+static const rb_data_type_t Context_DataType = {
+  "Context",
+  { 0, Context_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+// PublicKey
+static void
+PublicKey_free(void *public_key)
+{
+  xfree(public_key);
+}
+
+static const rb_data_type_t PublicKey_DataType = {
+  "PublicKey",
+  { 0, PublicKey_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+// PrivateKey
+static void
+PrivateKey_free(void *self)
+{
+  xfree(self);
+}
+
+static const rb_data_type_t PrivateKey_DataType = {
+  "PrivateKey",
+  { 0, PrivateKey_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+// KeyPair
+static void
+KeyPair_mark(void *self)
+{
+  KeyPair *key_pair = (KeyPair*)self;
+
+  // Mark both contained objects to ensure they are properly garbage collected
+  rb_gc_mark(key_pair->public_key);
+  rb_gc_mark(key_pair->private_key);
+}
+
+static void
+KeyPair_free(void *self)
+{
+  xfree(self);
+}
+
+static const rb_data_type_t KeyPair_DataType = {
+  "KeyPair",
+  { KeyPair_mark, KeyPair_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+// Signature
+static void
+Signature_free(void *signature)
+{
+  xfree(signature);
+}
+
+static const rb_data_type_t Signature_DataType = {
+  "Signature",
+  { 0, Signature_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
 
 /**
  * Macro: SUCCESS
@@ -185,6 +269,99 @@ Secp256k1_generate_private_key_bytes(VALUE self)
 }
 
 //
+// Secp256k1::PublicKey class interface
+//
+
+static VALUE
+PublicKey_alloc(VALUE klass)
+{
+  VALUE result;
+  PublicKey *public_key;
+
+  public_key = ALLOC(PublicKey);
+  result = TypedData_Wrap_Struct(klass, &PublicKey_DataType, public_key);
+
+  return result;
+}
+
+/**
+ * PublicKey#initialize
+ *
+ * Initialize a new public key from the given context and private key.
+ *
+ * \param in_context Context instance to be used in derivation
+ * \param in_private_key PrivateKey to derive public key from
+ * \return PublicKey instance initialized with data
+ * \raises TypeError if private key data is invalid
+ */
+static VALUE
+PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
+{
+  Context *context;
+  PublicKey *public_key;
+  PrivateKey *private_key;
+
+  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+  TypedData_Get_Struct(in_context, Context, &Context_DataType, context);
+  TypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
+
+  if (secp256k1_ec_pubkey_create(context->ctx,
+                                 &(public_key->pubkey),
+                                 private_key->data) == 0)
+  {
+    rb_raise(rb_eTypeError, "Invalid private key data");
+    return self;
+  }
+
+  public_key->context = context;
+
+  return self;
+}
+
+/* PublicKey#as_uncompressed */
+static VALUE
+PublicKey_as_uncompressed(VALUE self)
+{
+  PublicKey *public_key;
+  size_t serialized_pubkey_len = 65;
+  unsigned char serialized_pubkey[65];
+
+  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+
+  if (public_key->context == NULL || public_key->context->ctx == NULL)
+  {
+    rb_raise(rb_eRuntimeError, "Public key context is NULL");
+  }
+
+  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
+                                serialized_pubkey,
+                                &serialized_pubkey_len,
+                                &(public_key->pubkey),
+                                SECP256K1_EC_UNCOMPRESSED);
+
+  return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
+}
+
+/* PublicKey#as_compressed */
+static VALUE
+PublicKey_as_compressed(VALUE self)
+{
+  PublicKey *public_key;
+  size_t serialized_pubkey_len = 65;
+  unsigned char serialized_pubkey[65];
+
+  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+
+  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
+                                serialized_pubkey,
+                                &serialized_pubkey_len,
+                                &(public_key->pubkey),
+                                SECP256K1_EC_COMPRESSED);
+
+  return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
+}
+
+//
 // Secp256k1::PrivateKey class interface
 //
 
@@ -195,10 +372,9 @@ PrivateKey_alloc(VALUE klass)
   VALUE new_instance;
   PrivateKey *private_key;
 
-  new_instance = Data_Make_Struct(
-    klass, PrivateKey, NULL, free, private_key
-  );
-  memset(private_key->data, 0, 32);
+  private_key = ALLOC(PrivateKey);
+  MEMZERO(private_key, PrivateKey, 1);
+  new_instance = TypedData_Wrap_Struct(klass, &PrivateKey_DataType, private_key);
 
   return new_instance;
 }
@@ -242,8 +418,8 @@ PrivateKey_initialize(VALUE self, VALUE in_bytes)
     return self;
   }
 
-  Data_Get_Struct(self, PrivateKey, private_key);
-  memcpy(private_key->data, RSTRING_PTR(in_bytes), 32);
+  TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
+  MEMCPY(private_key->data, RSTRING_PTR(in_bytes), char, 32);
 
   // Set the PrivateKey.data attribute for later reading
   rb_iv_set(self, "@data", in_bytes);
@@ -262,12 +438,9 @@ Signature_alloc(VALUE klass)
   VALUE new_instance;
   Signature *signature;
 
-  new_instance = Data_Make_Struct(klass,
-                                  Signature,
-                                  NULL,
-                                  free,
-                                  signature);
-  memset(signature, 0, sizeof(Signature));
+  signature = ALLOC(Signature);
+  MEMZERO(signature, Signature, 1);
+  new_instance = TypedData_Wrap_Struct(klass, &Signature_DataType, signature);
 
   return new_instance;
 }
@@ -285,7 +458,7 @@ Signature_der_encoded(VALUE self)
   unsigned long der_signature_len;
   unsigned char der_signature[512];
 
-  Data_Get_Struct(self, Signature, signature);
+  TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   der_signature_len = 512;
   if (secp256k1_ecdsa_signature_serialize_der(signature->context->ctx,
@@ -313,7 +486,7 @@ Signature_compact(VALUE self)
   Signature *signature;
   unsigned char compact_signature[65];
 
-  Data_Get_Struct(self, Signature, signature);
+  TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_serialize_compact(signature->context->ctx,
                                                   compact_signature,
@@ -329,16 +502,6 @@ Signature_compact(VALUE self)
 // Secp256k1::Context class interface
 //
 
-/* Deallocate a context when it is garbage collected */
-static void
-Context_free(void* in_context)
-{
-  Context *context = (Context*)in_context;
-
-  secp256k1_context_destroy(context->ctx);
-  free(context);
-}
-
 /* Allocate a new context object */
 static VALUE
 Context_alloc(VALUE klass)
@@ -346,9 +509,9 @@ Context_alloc(VALUE klass)
   VALUE new_instance;
   Context *context;
 
-  new_instance = Data_Make_Struct(
-    klass, Context, NULL, Context_free, context
-  );
+  context = ALLOC(Context);
+
+  new_instance = TypedData_Wrap_Struct(klass, &Context_DataType, context);
   context->ctx = NULL;
 
   return new_instance;
@@ -367,7 +530,7 @@ Context_initialize(VALUE self)
   Context *context;
   unsigned char seed[32];
 
-  Data_Get_Struct(self, Context, context);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
 
   context->ctx = secp256k1_context_create(
     SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY
@@ -429,13 +592,11 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
 
   Check_Type(in_public_key_data, T_STRING);
 
-  Data_Get_Struct(self, Context, context);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
-  result = Data_Make_Struct(Secp256k1_PublicKey_class,
-                            PublicKey,
-                            NULL,
-                            free,
-                            public_key);
+
+  public_key = ALLOC(PublicKey);
+  result = TypedData_Wrap_Struct(Secp256k1_PublicKey_class, &PublicKey_DataType, public_key);
   public_key->context = context;
 
   if (secp256k1_ec_pubkey_parse(context->ctx,
@@ -471,7 +632,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 
   // TODO: Move verification into PrivateKey_initialize?
   // Verify secret key data before attempting to recover key pair
-  Data_Get_Struct(self, Context, context);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
 
   if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
@@ -515,14 +676,11 @@ Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
 
   Check_Type(in_der_encoded_signature, T_STRING);
 
-  Data_Get_Struct(self, Context, context);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
   signature_data = (unsigned char*)StringValuePtr(in_der_encoded_signature);
 
-  signature_result = Data_Make_Struct(Secp256k1_Signature_class,
-                                      Signature,
-                                      NULL,
-                                      free,
-                                      signature);
+  signature_result = Signature_alloc(Secp256k1_Signature_class);
+  TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_parse_der(context->ctx,
                                           &(signature->sig),
@@ -554,16 +712,11 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
   VALUE signature_result;
   unsigned char *signature_data;
 
-  Check_Type(in_compact_signature, T_STRING);
-
-  Data_Get_Struct(self, Context, context);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
   signature_data = (unsigned char*)StringValuePtr(in_compact_signature);
 
-  signature_result = Data_Make_Struct(Secp256k1_Signature_class,
-                                      Signature,
-                                      NULL,
-                                      free,
-                                      signature);
+  signature_result = Signature_alloc(Secp256k1_Signature_class);
+  TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_parse_compact(context->ctx,
                                               &(signature->sig),
@@ -597,16 +750,13 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
 
   Check_Type(in_data, T_STRING);
 
-  Data_Get_Struct(self, Context, context);
-  Data_Get_Struct(in_private_key, PrivateKey, private_key);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  TypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
   data_ptr = (unsigned char*)StringValuePtr(in_data);
 
-  signature_result = Data_Make_Struct(Secp256k1_Signature_class,
-                                      Signature,
-                                      NULL,
-                                      free,
-                                      signature);
-
+  signature_result = Signature_alloc(Secp256k1_Signature_class);
+  TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+ 
   // Attempt to sign the hash of the given data
   if (SUCCESS(SignData(context->ctx,
                        data_ptr,
@@ -643,9 +793,9 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message
 
   Check_Type(in_message, T_STRING);
 
-  Data_Get_Struct(self, Context, context);
-  Data_Get_Struct(in_pubkey, PublicKey, public_key);
-  Data_Get_Struct(in_signature, Signature, signature);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  TypedData_Get_Struct(in_pubkey, PublicKey, &PublicKey_DataType, public_key);
+  TypedData_Get_Struct(in_signature, Signature, &Signature_DataType, signature);
 
   message_ptr = (unsigned char*)StringValuePtr(in_message);
   SHA256(message_ptr, RSTRING_LEN(in_message), hash);
@@ -662,127 +812,36 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message
 }
 
 //
-// Secp256k1::PublicKey class interface
-//
-
-static VALUE
-PublicKey_alloc(VALUE klass)
-{
-  VALUE result;
-  PublicKey *public_key;
-
-  result = Data_Make_Struct(klass, PublicKey, NULL, free, public_key);
-
-  return result;
-}
-
-/**
- * PublicKey#initialize
- *
- * Initialize a new public key from the given context and private key.
- *
- * \param in_context Context instance to be used in derivation
- * \param in_private_key PrivateKey to derive public key from
- * \return PublicKey instance initialized with data
- * \raises TypeError if private key data is invalid
- */
-static VALUE
-PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
-{
-  Context *context;
-  PublicKey *public_key;
-  PrivateKey *private_key;
-
-  Data_Get_Struct(self, PublicKey, public_key);
-  Data_Get_Struct(in_context, Context, context);
-  Data_Get_Struct(in_private_key, PrivateKey, private_key);
-
-  if (secp256k1_ec_pubkey_create(context->ctx,
-                                 &(public_key->pubkey),
-                                 private_key->data) == 0)
-  {
-    rb_raise(rb_eTypeError, "Invalid private key data");
-    return self;
-  }
-
-  public_key->context = context;
-
-  return self;
-}
-
-/* PublicKey#as_uncompressed */
-static VALUE
-PublicKey_as_uncompressed(VALUE self)
-{
-  PublicKey *public_key;
-  size_t serialized_pubkey_len = 65;
-  unsigned char serialized_pubkey[65];
-
-  Data_Get_Struct(self, PublicKey, public_key);
-
-  if (public_key->context == NULL || public_key->context->ctx == NULL)
-  {
-    rb_raise(rb_eRuntimeError, "Public key context is NULL");
-  }
-
-  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
-                                serialized_pubkey,
-                                &serialized_pubkey_len,
-                                &(public_key->pubkey),
-                                SECP256K1_EC_UNCOMPRESSED);
-
-  return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
-}
-
-/* PublicKey#as_compressed */
-static VALUE
-PublicKey_as_compressed(VALUE self)
-{
-  PublicKey *public_key;
-  size_t serialized_pubkey_len = 65;
-  unsigned char serialized_pubkey[65];
-
-  Data_Get_Struct(self, PublicKey, public_key);
-
-  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
-                                serialized_pubkey,
-                                &serialized_pubkey_len,
-                                &(public_key->pubkey),
-                                SECP256K1_EC_COMPRESSED);
-
-  return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
-}
-
-
-//
 // Secp256k1::KeyPair class interface
 //
 
 static VALUE
 KeyPair_alloc(VALUE klass)
 {
-  VALUE result;
   KeyPair *key_pair;
-  result = Data_Make_Struct(klass, KeyPair, NULL, free, key_pair);
 
-  return result;
+  key_pair = ALLOC(KeyPair);
+
+  return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
 }
 
 static VALUE
-KeyPair_initialize(VALUE self, VALUE public_key, VALUE private_key)
+KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
 {
   KeyPair *key_pair;
 
-  Data_Get_Struct(self, KeyPair, key_pair);
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
 
-  key_pair->public_key = public_key;
-  key_pair->private_key = private_key;
+  key_pair->public_key = in_public_key;
+  key_pair->private_key = in_private_key;
 
-  rb_iv_set(self, "@public_key", public_key);
-  rb_iv_set(self, "@private_key", private_key);
+  rb_iv_set(self, "@public_key", in_public_key);
+  rb_iv_set(self, "@private_key", in_private_key);
 
   return self;
 }
+
+// Data type definitions
 
 //
 // Library initialization
