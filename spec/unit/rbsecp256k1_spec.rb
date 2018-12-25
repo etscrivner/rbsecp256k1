@@ -137,4 +137,25 @@ RSpec.describe Secp256k1 do
       expect(context.verify(signature, key_pair.public_key, text_message)).to be false
     end
   end
+
+  describe 'hex/binary utils' do
+    describe '.bin_to_hex' do
+      it 'converts a binary string to the expected hex string' do
+        expect(Secp256k1::Util.bin_to_hex("\xDE\xAD\xBE\xEF")).to eq("deadbeef")
+      end
+    end
+
+    describe ".hex_to_bin" do
+      it 'converts a hex string to expected binary' do
+        expect(Secp256k1::Util.hex_to_bin('DEADBEEF').bytes)
+          .to eq("\xDE\xAD\xBE\xEF".bytes)
+      end
+
+      it 'raises an error if string is invalid hex' do
+        expect do
+          Secp256k1::Util.hex_to_bin("test")
+        end.to raise_error(ArgumentError, "Invalid hexadecimal string")
+      end
+    end
+  end
 end

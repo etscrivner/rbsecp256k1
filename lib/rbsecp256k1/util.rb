@@ -1,6 +1,9 @@
 module Secp256k1
   # Contains utility methods that complement the functionality of the library.
   module Util
+    # Regexp to validate a hexadecimal string
+    HEX_REGEXP = /^[A-Fa-f\d]+$/.freeze
+
     # Converts a binary string to a hex string.
     #
     # @param binary_string [String] binary string to be converted.
@@ -13,7 +16,10 @@ module Secp256k1
     #
     # @param hex_string [String] string with hexadeimcal value.
     # @return [String] binary string equivalent of the given hex string.
+    # @raise [ArgumentError] if hex string is an invalid hexadecimal string.
     def self.hex_to_bin(hex_string)
+      raise ArgumentError, "Invalid hexadecimal string" unless hex_string =~ HEX_REGEXP
+
       [hex_string].pack('H*')
     end
   end
