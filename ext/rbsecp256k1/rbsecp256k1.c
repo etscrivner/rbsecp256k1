@@ -247,27 +247,6 @@ SignData(secp256k1_context *in_context,
   return RESULT_FAILURE;
 }
 
-/**
- * Secp256k1.generate_private_key_bytes
- *
- * Generate cryptographically secure 32 byte private key data.
- *
- * Raises:
- *   RuntimeError - If random number generation fails for any reason.
- */
-static VALUE
-Secp256k1_generate_private_key_bytes(VALUE self)
-{
-  unsigned char private_key_bytes[32];
-
-  if (FAILURE(GenerateRandomBytes(private_key_bytes, 32)))
-  {
-    rb_raise(rb_eRuntimeError, "Random number generation failed.");
-  }
-
-  return rb_str_new((char*)private_key_bytes, 32);
-}
-
 //
 // Secp256k1::PublicKey class interface
 //
@@ -389,11 +368,16 @@ PrivateKey_alloc(VALUE klass)
 static VALUE
 PrivateKey_generate(VALUE klass)
 {
-  VALUE result = rb_funcall(klass,
-                            rb_intern("new"),
-                            1,
-                            Secp256k1_generate_private_key_bytes(Secp256k1_module));
-  return result;
+  unsigned char private_key_bytes[32];
+
+  if (FAILURE(GenerateRandomBytes(private_key_bytes, 32)))
+  {
+    rb_raise(rb_eRuntimeError, "Random bytes generation failed.");
+  }
+
+  return rb_funcall(
+    klass, rb_intern("new"), 1, rb_str_new((char*)private_key_bytes, 32)
+  );
 }
 
 /**
@@ -851,10 +835,6 @@ void Init_rbsecp256k1()
 {
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
-  rb_define_singleton_method(Secp256k1_module,
-                             "generate_private_key_bytes",
-                             Secp256k1_generate_private_key_bytes,
-                             0);
 
   // Secp256k1::Context
   Secp256k1_Context_class = rb_define_class_under(
