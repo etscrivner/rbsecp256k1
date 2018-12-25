@@ -63,19 +63,19 @@ context = Secp256k1::Context.new
 key_pair = context.generate_key_pair
 
 # 1. Get the binary representation of compressed public key
-key_pair.public_key.as_compressed
+key_pair.public_key.compressed
 # => "\x03D\x88\xD6 3|3\x836\xCB(\x9CW%\xF4T\xB7\xCD\x8AF T\xE7\xE8\xCE\xB0\xC7c{\xE2:\xFE"
 
 # 2. Show hex representation of compressed public key
-Secp256k1::Util.bin_to_hex(key_pair.public_key.as_compressed)
+Secp256k1::Util.bin_to_hex(key_pair.public_key.compressed)
 # => "034488d620337c338336cb289c5725f454b7cd8a462054e7e8ceb0c7637be23afe"
 
 # 3. Get the binary representation of uncompressed public key
-key_pair.public_key.as_uncompressed
+key_pair.public_key.uncompressed
 # => "\x04D\x88\xD6 3|3\x836\xCB(\x9CW%\xF4T\xB7\xCD\x8AF T\xE7\xE8\xCE\xB0\xC7c{\xE2:\xFE XRew\x1F\e\x05\xC8\xDC\xA7\xE3\x8C\xBD\x91s?\xFCW\xD5\xB3\xA8aaCCG\xD4\x94m\xA5c"
 
 # 4. Show hex representation of uncompressed public key
-Secp256k1::Util.bin_to_hex(key_pair.public_key.as_uncompressed)
+Secp256k1::Util.bin_to_hex(key_pair.public_key.uncompressed)
 # => "044488d620337c338336cb289c5725f454b7cd8a462054e7e8ceb0c7637be23afe20585265771f1b05c8dca7e38cbd91733ffc57d5b3a86161434347d4946da563"
 ```
 

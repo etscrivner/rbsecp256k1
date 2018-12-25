@@ -297,9 +297,9 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
   return self;
 }
 
-/* PublicKey#as_uncompressed */
+/* PublicKey#uncompressed */
 static VALUE
-PublicKey_as_uncompressed(VALUE self)
+PublicKey_uncompressed(VALUE self)
 {
   PublicKey *public_key;
   size_t serialized_pubkey_len = 65;
@@ -321,9 +321,9 @@ PublicKey_as_uncompressed(VALUE self)
   return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
 }
 
-/* PublicKey#as_compressed */
+/* PublicKey#compressed */
 static VALUE
-PublicKey_as_compressed(VALUE self)
+PublicKey_compressed(VALUE self)
 {
   PublicKey *public_key;
   size_t serialized_pubkey_len = 65;
@@ -896,12 +896,12 @@ void Init_rbsecp256k1()
                    PublicKey_initialize,
                    2);
   rb_define_method(Secp256k1_PublicKey_class,
-                   "as_compressed",
-                   PublicKey_as_compressed,
+                   "compressed",
+                   PublicKey_compressed,
                    0);
   rb_define_method(Secp256k1_PublicKey_class,
-                   "as_uncompressed",
-                   PublicKey_as_uncompressed,
+                   "uncompressed",
+                   PublicKey_uncompressed,
                    0);
 
   // Secp256k1::PrivateKey

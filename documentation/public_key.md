@@ -18,10 +18,10 @@ Creates a new public key derived from `private_key` (type: [PrivateKey](private_
 Instance Methods
 ----------------
 
-#### as_compressed
+#### compressed
 
 Returns the binary compressed representation of this public key.
 
-#### as_uncompressed
+#### uncompressed
 
 Returns the binary uncompressed representation of this public key.

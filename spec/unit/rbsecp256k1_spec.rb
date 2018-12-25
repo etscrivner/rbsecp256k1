@@ -32,38 +32,38 @@ RSpec.describe Secp256k1 do
       expect(key_pair).to be_a(Secp256k1::KeyPair)
       expect(Secp256k1::Util.bin_to_hex(key_pair.private_key.data))
         .to eq(expected_private_key_hex)
-      expect(Secp256k1::Util.bin_to_hex(key_pair.public_key.as_compressed))
+      expect(Secp256k1::Util.bin_to_hex(key_pair.public_key.compressed))
         .to eq(expected_compressed_pubkey_hex)
     end
 
     it 'can load public key from uncompressed key' do
       public_key_uncompressed = context.public_key_from_data(
-        key_pair.public_key.as_uncompressed
+        key_pair.public_key.uncompressed
       )
 
-      expect(public_key_uncompressed.as_uncompressed.bytes)
-        .to eq(key_pair.public_key.as_uncompressed.bytes)
+      expect(public_key_uncompressed.uncompressed.bytes)
+        .to eq(key_pair.public_key.uncompressed.bytes)
     end
 
     it 'can load public key from compressed key' do
       public_key_compressed = context.public_key_from_data(
-        key_pair.public_key.as_uncompressed
+        key_pair.public_key.uncompressed
       )
 
-      expect(public_key_compressed.as_compressed.bytes)
-        .to eq(key_pair.public_key.as_compressed.bytes)
+      expect(public_key_compressed.compressed.bytes)
+        .to eq(key_pair.public_key.compressed.bytes)
     end
 
     describe 'PublicKey' do
       it 'can produce uncompressed key' do
-        uncompressed_key = key_pair.public_key.as_uncompressed
+        uncompressed_key = key_pair.public_key.uncompressed
 
         expect(uncompressed_key).to be_a(String)
         expect(uncompressed_key.length).to eq(65)
       end
 
       it 'can produce compressed key' do
-        compressed_key = key_pair.public_key.as_compressed
+        compressed_key = key_pair.public_key.compressed
 
         expect(compressed_key).to be_a(String)
         expect(compressed_key.length).to eq(33)
