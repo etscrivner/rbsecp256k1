@@ -27,10 +27,10 @@ gem:
 	gem build rbsecp256k1.gemspec
 
 install: gem
-	gem install rbsecp256k1-1.1.0.gem
+	gem install rbsecp256k1-*.gem
 
 uninstall:
 	gem uninstall rbsecp256k1
 
 clean:
-	rm -rf *~ rbsecp256k1-0.1.0.gem lib/rbsecp256k1/rbsecp256k1.so tmp
+	rm -rf *~ rbsecp256k1-*.gem lib/rbsecp256k1/rbsecp256k1.so tmp

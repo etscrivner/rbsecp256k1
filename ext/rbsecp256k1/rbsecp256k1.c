@@ -72,7 +72,9 @@ typedef struct Signature_dummy {
   Context *context;
 } Signature;
 
+//
 // Typed data definitions
+//
 
 // Context
 static void
