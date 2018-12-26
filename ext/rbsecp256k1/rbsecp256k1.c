@@ -266,14 +266,12 @@ PublicKey_alloc(VALUE klass)
 }
 
 /**
- * PublicKey#initialize
- *
  * Initialize a new public key from the given context and private key.
  *
- * \param in_context Context instance to be used in derivation
- * \param in_private_key PrivateKey to derive public key from
- * \return PublicKey instance initialized with data
- * \raises TypeError if private key data is invalid
+ * @param in_context [Secp256k1::Context] context instance to be used in derivation
+ * @param in_private_key [Secp256k1::PrivateKey] private key to derive public key from
+ * @return [Secp256k1::PublicKey] public key derived from private key
+ * @raise [TypeError] if private key data is invalid
  */
 static VALUE
 PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
@@ -299,7 +297,10 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
   return self;
 }
 
-/* PublicKey#uncompressed */
+/**
+ * @return [String] binary string containing the uncompressed representation
+ *   of this public key.
+ */
 static VALUE
 PublicKey_uncompressed(VALUE self)
 {
@@ -323,7 +324,10 @@ PublicKey_uncompressed(VALUE self)
   return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
 }
 
-/* PublicKey#compressed */
+/**
+ * @return [String] binary string containing the compressed representation of
+ *   this public key.
+ */
 static VALUE
 PublicKey_compressed(VALUE self)
 {
@@ -361,11 +365,9 @@ PrivateKey_alloc(VALUE klass)
 }
 
 /**
- * PrivateKey.generate
- *
  * Generates a new random private key.
  *
- * \return PrivateKey instance populated with randomly generated key.
+ * @return [Secp256k1::PrivateKey] new, randomly generated private key.
  */
 static VALUE
 PrivateKey_generate(VALUE klass)
@@ -383,13 +385,10 @@ PrivateKey_generate(VALUE klass)
 }
 
 /**
- * PrivateKey#initialize
+ * Initialize a new private key from binary data.
  *
- * Initialize a new private key with the given private key data.
- *
- * \param self allocated class instance
- * \param in_bytes private key data as 32 byte string
- * \raises ArgumentError If private key data is not 32 bytes long.
+ * @param in_bytes [String] binary string with 32 bytes of private key data.
+ * @raise [ArgumentError] if private key data is not 32 bytes long.
  */
 static VALUE
 PrivateKey_initialize(VALUE self, VALUE in_bytes)
@@ -432,10 +431,9 @@ Signature_alloc(VALUE klass)
 }
 
 /**
- * Signature#der_encoded
+ * Return Distinguished Encoding Rules (DER) encoded signature data.
  *
- * \param self
- * \return DER encoded version of this signature
+ * @return [String] binary string containing DER-encoded signature data.
  */
 static VALUE
 Signature_der_encoded(VALUE self)
@@ -459,12 +457,9 @@ Signature_der_encoded(VALUE self)
 }
 
 /**
- * Signature#compact
+ * Returns the 64 byte compact representation of this signature.
  *
- * Returns the compact (64-byte) representation of this signature.
- *
- * \param self
- * \return Compact encoding of this signature
+ * @return [String] 64 byte binary string containing signature data.
  */
 static VALUE
 Signature_compact(VALUE self)
@@ -504,11 +499,11 @@ Context_alloc(VALUE klass)
 }
 
 /**
- * Context#initialize
+ * Initialize a new context.
  *
- * Initialize a new libsecp256k1 context.
+ * Context initialization should be infrequent as it is an expensive operation.
  *
- * \raises RuntimeError if context randomizatino fails.
+ * @raise [RuntimeError] if context randomization fails.
  */
 static VALUE
 Context_initialize(VALUE self)
@@ -534,9 +529,9 @@ Context_initialize(VALUE self)
 }
 
 /**
- * Context#generate_key_pair
+ * Generate a new public-private key pair.
  *
- * Generate a new (public, private) key pair.
+ * @return [Secp256k1::KeyPair] newly generated key pair.
  */
 static VALUE
 Context_generate_key_pair(VALUE self)
@@ -561,12 +556,12 @@ Context_generate_key_pair(VALUE self)
 }
 
 /**
- * Context#public_key_from_data
- *
  * Loads a public key from compressed or uncompressed binary data.
  *
- * \param self
- * \param in_public_key_data Compressed or uncompressed binary public key data.
+ * @param in_public_key_data [String] binary string with compressed or
+ *   uncompressed public key data.
+ * @return [Secp256k1::PublicKey] public key derived from data.
+ * @raise [RuntimeError] if public key data is invalid.
  */
 static VALUE
 Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
@@ -597,14 +592,11 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
 }
 
 /**
- * Context#key_pair_from_private_key
+ * Converts binary private key data into a new key pair.
  *
- * Converts a binary private key into a key pair
- *
- * \param self
- * \param in_private_key_data Binary private key data to be used
- * \return A KeyPair initialized from the given private key data
- * \raises ArgumentError if the private key data is invalid or key derivation
+ * @param in_private_key_data [String] binary private key data
+ * @return [Secp256k1::KeyPair] key pair initialized from the private key data.
+ * @raise [ArgumentError] if the private key data is invalid or key derivation
  *   fails.
  */
 static VALUE
@@ -623,7 +615,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   // Verify secret key data before attempting to recover key pair
   if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
   {
-    rb_raise(rb_eRuntimeError, "Invalid private key data.");
+    rb_raise(rb_eArgError, "Invalid private key data.");
   }
 
   private_key = rb_funcall(Secp256k1_PrivateKey_class,
@@ -645,12 +637,13 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 }
 
 /**
- * Context#signature_from_der_encoded
+ * Converts a DER encoded binary signature into a signature object.
  *
- * Converts a DER encoded signature into a Secp256k1::Signature object.
- *
- * \param self
- * \param in_der_encoded_signature DER encoded signature as a binary string
+ * @param in_der_encoded_signature [String] DER encoded signature as binary
+ *   string.
+ * @return [Secp256k1::Signature] signature object initialized using signature
+ *   data.
+ * @raise [ArgumentError] if signature data is invalid.
  */
 static VALUE
 Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
@@ -673,7 +666,7 @@ Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
                                           signature_data,
                                           RSTRING_LEN(in_der_encoded_signature)) != 1)
   {
-    rb_raise(rb_eRuntimeError, "Invalid DER encoded signature.");
+    rb_raise(rb_eArgError, "Invalid DER encoded signature.");
   }
 
   signature->context = context;
@@ -681,14 +674,12 @@ Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
 }
 
 /**
- * Context#signature_from_compact
- *
  * Deserializes a Signature from 64-byte compact signature data.
  *
- * \param self
- * \param in_compact_signature Compact signature to deserialize
- * \return Signature object deserialized from compact signature.
- * \raises RuntimeError if signature deserialization fails
+ * @param in_compact_signature [String] compact signature as 64-byte binary
+ *   string.
+ * @return [Secp256k1::Signature] object deserialized from compact signature.
+ * @raise [ArgumentError] if signature data is invalid.
  */
 static VALUE
 Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
@@ -708,7 +699,7 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
                                               &(signature->sig),
                                               signature_data) != 1)
   {
-    rb_raise(rb_eRuntimeError, "Invalid compact signature.");
+    rb_raise(rb_eArgError, "Invalid compact signature.");
   }
 
   signature->context = context;
@@ -716,14 +707,12 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
 }
 
 /**
- * Context#sign
+ * Computes the ECDSA signature of the data using the secp256k1 elliptic curve.
  *
- * Computes the ECDSA signature of the data using the secp256k1 EC.
- *
- * \param self
- * \param in_private_key Private key to use for signing
- * \param in_data Data to be signed
- * \raises RuntimeError if signing fails
+ * @param in_private_key [Secp256k1::PrivateKey] private key to use for
+ *   signing.
+ * @param in_data [String] binary or text data to be signed.
+ * @raise [RuntimeError] if signature computation fails.
  */
 static VALUE
 Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
@@ -758,15 +747,13 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
 }
 
 /**
- * Context#verify
+ * Verifies that signature matches public key and data.
  *
- * Verifies that the signature by the holder of public key on message.
- *
- * \param self
- * \param in_signature Signature to be verified
- * \param in_pubkey Public key to verify signature against
- * \param in_message Message to verify signature of
- * \return Qtrue if the signature is valid, Qfalse otherwise.
+ * @param in_signature [Secp256k1::Signature] signature to be verified.
+ * @param in_pubkey [Secp256k1::PublicKey] public key to verify signature
+ *   against.
+ * @param in_message [String] text or binary data to verify signature against.
+ * @return [Bool] True if the signature is valid, false otherwise.
  */
 static VALUE
 Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message)
@@ -811,6 +798,13 @@ KeyPair_alloc(VALUE klass)
   return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
 }
 
+/**
+ * Default constructor.
+ *
+ * @param in_public_key [Secp256k1::PublicKey] public key
+ * @param in_private_key [Secp256k1::PrivateKey] private key
+ * @return [Secp256k1::KeyPair] newly initialized key pair.
+ */
 static VALUE
 KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
 {

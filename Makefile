@@ -1,4 +1,4 @@
-.PHONY: setup build test lint gem install uninstall clean
+.PHONY: setup build test lint gem install uninstall clean docserver
 
 # Retrieve operating system name
 OS=$(shell uname -s)
@@ -36,3 +36,6 @@ uninstall:
 
 clean:
 	rm -rf *~ rbsecp256k1-*.gem lib/rbsecp256k1/rbsecp256k1.so tmp
+
+docserver:
+	bundle exec yard server --reload
