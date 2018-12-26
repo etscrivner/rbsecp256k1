@@ -11,7 +11,7 @@ endif
 all: test
 
 deps:
-	cd vendor/secp256k1 && ./autogen.sh && ./configure && make && sudo make install
+	cd vendor/secp256k1 && ./autogen.sh && ./configure --enable-module-recovery && make && sudo make install
 
 setup:
 	bundle install

@@ -14,6 +14,23 @@ You'll need to have compiled and installed [libsecp256k1](https://github.com/bit
 also need the OpenSSL development bindings. More info is available in the Linux
 and macOS sections below.
 
+### Building libsecp256k1
+
+To build libsecp256k1 from source you can do the following:
+
+```
+make deps
+```
+
+Or if you want to build it yourself from the repository, you should do the following:
+
+```
+./autogen.sh
+./configure --enable-module-recovery
+make
+sudo make install
+```
+
 ### Linux
 
 Install the dependencies for building libsecp256k1 and this library:
