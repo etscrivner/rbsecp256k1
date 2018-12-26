@@ -8,6 +8,14 @@ Secp256k1::PrivateKey represents the private key part of a public-private key pa
 Initializers
 ------------
 
-#### new(private_key_data)
+#### new(context, private_key_data)
 
-Initializes the private key with the provided 32-byte `private_key_data`.
+Initializes the private key with the `in_context` and provided 32-byte binary
+string `private_key_data`.
+
+Class Methods
+-------------
+
+#### generate(context)
+
+Generates a new private key with `in_context`.

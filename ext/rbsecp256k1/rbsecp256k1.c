@@ -59,16 +59,17 @@ typedef struct KeyPair_dummy {
 
 typedef struct PublicKey_dummy {
   secp256k1_pubkey pubkey;
-  Context *context;
+  secp256k1_context *ctx;
 } PublicKey;
 
 typedef struct PrivateKey_dummy {
   unsigned char data[32]; // Bytes comprising the private key data
+  secp256k1_context *ctx;
 } PrivateKey;
 
 typedef struct Signature_dummy {
   secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature.
-  Context *context;
+  secp256k1_context *ctx;
 } Signature;
 
 //
@@ -80,7 +81,6 @@ static void
 Context_free(void* in_context)
 {
   Context *context = (Context*)in_context;
-
   secp256k1_context_destroy(context->ctx);
   xfree(context);
 }
@@ -94,8 +94,10 @@ static const rb_data_type_t Context_DataType = {
 
 // PublicKey
 static void
-PublicKey_free(void *public_key)
+PublicKey_free(void *in_public_key)
 {
+  PublicKey *public_key = (PublicKey*)in_public_key;
+  secp256k1_context_destroy(public_key->ctx);
   xfree(public_key);
 }
 
@@ -108,9 +110,11 @@ static const rb_data_type_t PublicKey_DataType = {
 
 // PrivateKey
 static void
-PrivateKey_free(void *self)
+PrivateKey_free(void *in_private_key)
 {
-  xfree(self);
+  PrivateKey *private_key = (PrivateKey*)in_private_key;
+  secp256k1_context_destroy(private_key->ctx);
+  xfree(private_key);
 }
 
 static const rb_data_type_t PrivateKey_DataType = {
@@ -122,9 +126,9 @@ static const rb_data_type_t PrivateKey_DataType = {
 
 // KeyPair
 static void
-KeyPair_mark(void *self)
+KeyPair_mark(void *in_key_pair)
 {
-  KeyPair *key_pair = (KeyPair*)self;
+  KeyPair *key_pair = (KeyPair*)in_key_pair;
 
   // Mark both contained objects to ensure they are properly garbage collected
   rb_gc_mark(key_pair->public_key);
@@ -146,8 +150,10 @@ static const rb_data_type_t KeyPair_DataType = {
 
 // Signature
 static void
-Signature_free(void *signature)
+Signature_free(void *in_signature)
 {
+  Signature *signature = (Signature*)in_signature;
+  secp256k1_context_destroy(signature->ctx);
   xfree(signature);
 }
 
@@ -289,10 +295,9 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
                                  private_key->data) == 0)
   {
     rb_raise(rb_eTypeError, "Invalid private key data");
-    return self;
   }
 
-  public_key->context = context;
+  public_key->ctx = secp256k1_context_clone(context->ctx);
 
   return self;
 }
@@ -310,12 +315,12 @@ PublicKey_uncompressed(VALUE self)
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
-  if (public_key->context == NULL || public_key->context->ctx == NULL)
+  if (public_key->ctx == NULL)
   {
     rb_raise(rb_eRuntimeError, "Public key context is NULL");
   }
 
-  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
+  secp256k1_ec_pubkey_serialize(public_key->ctx,
                                 serialized_pubkey,
                                 &serialized_pubkey_len,
                                 &(public_key->pubkey),
@@ -337,7 +342,7 @@ PublicKey_compressed(VALUE self)
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
-  secp256k1_ec_pubkey_serialize(public_key->context->ctx,
+  secp256k1_ec_pubkey_serialize(public_key->ctx,
                                 serialized_pubkey,
                                 &serialized_pubkey_len,
                                 &(public_key->pubkey),
@@ -367,10 +372,12 @@ PrivateKey_alloc(VALUE klass)
 /**
  * Generates a new random private key.
  *
+ * @param in_context [Secp256k1::Context] context to be used in private key
+ *   generation.
  * @return [Secp256k1::PrivateKey] new, randomly generated private key.
  */
 static VALUE
-PrivateKey_generate(VALUE klass)
+PrivateKey_generate(VALUE klass, VALUE in_context)
 {
   unsigned char private_key_bytes[32];
 
@@ -380,34 +387,51 @@ PrivateKey_generate(VALUE klass)
   }
 
   return rb_funcall(
-    klass, rb_intern("new"), 1, rb_str_new((char*)private_key_bytes, 32)
+    klass,
+    rb_intern("new"),
+    2,
+    in_context,
+    rb_str_new((char*)private_key_bytes, 32)
   );
 }
 
 /**
  * Initialize a new private key from binary data.
  *
- * @param in_bytes [String] binary string with 32 bytes of private key data.
- * @raise [ArgumentError] if private key data is not 32 bytes long.
+ * @param in_context [Secp256k1::Context] context to be used in private key
+ *   generation.
+ * @param in_private_key_data [String] binary string with 32 bytes of private
+ *   key data.
+ * @raise [ArgumentError] if private key data is not 32 bytes long or is
+ *   invalid.
  */
 static VALUE
-PrivateKey_initialize(VALUE self, VALUE in_bytes)
+PrivateKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key_data)
 {
   PrivateKey *private_key;
+  Context *context;
+  unsigned char *private_key_data;
 
-  Check_Type(in_bytes, T_STRING);
+  Check_Type(in_private_key_data, T_STRING);
+  TypedData_Get_Struct(in_context, Context, &Context_DataType, context);
+  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
 
-  if (RSTRING_LEN(in_bytes) != 32)
+  if (RSTRING_LEN(in_private_key_data) != 32)
   {
     rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
-    return self;
   }
 
+  if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
+  {
+    rb_raise(rb_eArgError, "invalid private key data");
+  }    
+
   TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
-  MEMCPY(private_key->data, RSTRING_PTR(in_bytes), char, 32);
+  MEMCPY(private_key->data, private_key_data, char, 32);
+  private_key->ctx = secp256k1_context_clone(context->ctx);
 
   // Set the PrivateKey.data attribute for later reading
-  rb_iv_set(self, "@data", in_bytes);
+  rb_iv_set(self, "@data", in_private_key_data);
 
   return self;
 }
@@ -445,7 +469,7 @@ Signature_der_encoded(VALUE self)
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   der_signature_len = 512;
-  if (secp256k1_ecdsa_signature_serialize_der(signature->context->ctx,
+  if (secp256k1_ecdsa_signature_serialize_der(signature->ctx,
                                               der_signature,
                                               &der_signature_len,
                                               &(signature->sig)) == 1)
@@ -453,7 +477,7 @@ Signature_der_encoded(VALUE self)
     return rb_str_new((char*)der_signature, der_signature_len);
   }
 
-  rb_raise(rb_eRuntimeError, "Could not compute DER encoded signature");
+  rb_raise(rb_eRuntimeError, "could not compute DER encoded signature");
 }
 
 /**
@@ -469,14 +493,14 @@ Signature_compact(VALUE self)
 
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
-  if (secp256k1_ecdsa_signature_serialize_compact(signature->context->ctx,
+  if (secp256k1_ecdsa_signature_serialize_compact(signature->ctx,
                                                   compact_signature,
                                                   &(signature->sig)) == 1)
   {
     return rb_str_new((char*)compact_signature, 65);
   }
 
-  rb_raise(rb_eRuntimeError, "Unable to compute compact signature");
+  rb_raise(rb_eRuntimeError, "unable to compute compact signature");
 }
 
 //
@@ -522,7 +546,7 @@ Context_initialize(VALUE self)
   GenerateRandomBytes(seed, 32);
   if (secp256k1_context_randomize(context->ctx, seed) != 1)
   {
-    rb_raise(rb_eRuntimeError, "Randomization of context failed.");
+    rb_raise(rb_eRuntimeError, "context randomization failed");
   }
 
   return self;
@@ -540,7 +564,7 @@ Context_generate_key_pair(VALUE self)
   VALUE public_key;
   VALUE key_pair;
 
-  private_key = PrivateKey_generate(Secp256k1_PrivateKey_class);
+  private_key = PrivateKey_generate(Secp256k1_PrivateKey_class, self);
   public_key = rb_funcall(Secp256k1_PublicKey_class,
                           rb_intern("new"),
                           2,
@@ -577,7 +601,7 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
 
   public_key = ALLOC(PublicKey);
-  public_key->context = context;
+  public_key->ctx = secp256k1_context_clone(context->ctx);
   result = TypedData_Wrap_Struct(Secp256k1_PublicKey_class, &PublicKey_DataType, public_key);
 
   if (secp256k1_ec_pubkey_parse(context->ctx,
@@ -585,7 +609,7 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
                                 public_key_data,
                                 RSTRING_LEN(in_public_key_data)) != 1)
   {
-    rb_raise(rb_eRuntimeError, "Invalid public key data");
+    rb_raise(rb_eRuntimeError, "invalid public key data");
   }
 
   return result;
@@ -602,25 +626,14 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
 static VALUE
 Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 {
-  Context *context;
   VALUE public_key;
   VALUE private_key;
   VALUE key_pair;
-  unsigned char *private_key_data;
-
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
-
-  // TODO: Move verification into PrivateKey_initialize?
-  // Verify secret key data before attempting to recover key pair
-  if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
-  {
-    rb_raise(rb_eArgError, "Invalid private key data.");
-  }
 
   private_key = rb_funcall(Secp256k1_PrivateKey_class,
                            rb_intern("new"),
-                           1,
+                           2,
+                           self,
                            in_private_key_data);
   public_key = rb_funcall(Secp256k1_PublicKey_class,
                           rb_intern("new"),
@@ -666,10 +679,10 @@ Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
                                           signature_data,
                                           RSTRING_LEN(in_der_encoded_signature)) != 1)
   {
-    rb_raise(rb_eArgError, "Invalid DER encoded signature.");
+    rb_raise(rb_eArgError, "invalid DER encoded signature");
   }
 
-  signature->context = context;
+  signature->ctx = secp256k1_context_clone(context->ctx);
   return signature_result;
 }
 
@@ -699,10 +712,10 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
                                               &(signature->sig),
                                               signature_data) != 1)
   {
-    rb_raise(rb_eArgError, "Invalid compact signature.");
+    rb_raise(rb_eArgError, "invalid compact signature");
   }
 
-  signature->context = context;
+  signature->ctx = secp256k1_context_clone(context->ctx);
   return signature_result;
 }
 
@@ -739,11 +752,11 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
                        private_key->data,
                        &(signature->sig))))
   {
-    signature->context = context;
+    signature->ctx = secp256k1_context_clone(context->ctx);
     return signature_result;
   }
 
-  rb_raise(rb_eRuntimeError, "Unable to compute signature");
+  rb_raise(rb_eRuntimeError, "unable to compute signature");
 }
 
 /**
@@ -908,12 +921,12 @@ void Init_rbsecp256k1()
   rb_define_singleton_method(Secp256k1_PrivateKey_class,
                              "generate",
                              PrivateKey_generate,
-                             0);
+                             1);
   rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
   rb_define_method(Secp256k1_PrivateKey_class,
                    "initialize",
                    PrivateKey_initialize,
-                   1);
+                   2);
 
   // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
