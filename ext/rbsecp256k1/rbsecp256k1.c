@@ -834,27 +834,16 @@ static VALUE
 KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
 {
   KeyPair *key_pair;
-  PublicKey *public_key;
-  PrivateKey *private_key;
 
   TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
-  TypedData_Get_Struct(
-    in_public_key, PublicKey, &PublicKey_DataType, public_key
-  );
-  TypedData_Get_Struct(
-    in_private_key, PrivateKey, &PrivateKey_DataType, private_key
-  );
+  Check_TypedStruct(in_public_key, &PublicKey_DataType);
+  Check_TypedStruct(in_private_key, &PrivateKey_DataType);
 
-  // NOTE: We need to use public_key and private_key somehow to avoid a
-  // compiler warning. So do this simple check before assigning.
-  if (public_key != NULL && private_key != NULL)
-  {
-    key_pair->public_key = in_public_key;
-    key_pair->private_key = in_private_key;
+  key_pair->public_key = in_public_key;
+  key_pair->private_key = in_private_key;
 
-    rb_iv_set(self, "@public_key", in_public_key);
-    rb_iv_set(self, "@private_key", in_private_key);
-  }
+  rb_iv_set(self, "@public_key", in_public_key);
+  rb_iv_set(self, "@private_key", in_private_key);
 
   return self;
 }
