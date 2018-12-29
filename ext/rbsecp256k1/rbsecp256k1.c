@@ -12,7 +12,13 @@
 
 #include <openssl/rand.h>
 #include <openssl/sha.h>
+
 #include <secp256k1.h>
+
+// Include recoverable signatures functionality if available
+#ifdef HAVE_SECP256K1_RECOVERY_H
+#include <secp256k1_recovery.h>
+#endif // HAVE_SECP256K1_RECOVERY_H
 
 // High-level design:
 //
@@ -24,6 +30,7 @@
 // |--  PublicKey
 // |--  PrivateKey
 // |--  Signature
+// |--  RecoverableSignature
 //
 // The Context class contains most of the methods that invoke libsecp256k1.
 // The KayPair, PublicKey, PrivateKey, and Signature objects act as data
@@ -54,6 +61,10 @@ static VALUE Secp256k1_PublicKey_class;
 static VALUE Secp256k1_PrivateKey_class;
 static VALUE Secp256k1_Signature_class;
 
+#ifdef HAVE_SECP256K1_RECOVERY_H
+static VALUE Secp256k1_RecoverableSignature_class;
+#endif // HAVE_SECP256K1_RECOVERY_H
+
 // Forward definitions for all structures
 typedef struct Context_dummy {
   secp256k1_context *ctx; // Context used by libsecp256k1 library
@@ -78,6 +89,13 @@ typedef struct Signature_dummy {
   secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature
   secp256k1_context *ctx;
 } Signature;
+
+#ifdef HAVE_SECP256K1_RECOVERY_H
+typedef struct RecoverableSignature_dummy {
+  secp256k1_ecdsa_recoverable_signature sig; // Recoverable signature object
+  secp256k1_context *ctx;
+} RecoverableSignature;
+#endif // HAVE_SECP256K1_RECOVERY_H
 
 //
 // Typed data definitions
@@ -173,6 +191,27 @@ static const rb_data_type_t Signature_DataType = {
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
+
+// RecoverableSignature
+#ifdef HAVE_SECP256K1_RECOVERY_H
+static void
+RecoverableSignature_free(void *in_recoverable_signature)
+{
+  RecoverableSignature *recoverable_signature = (
+    (RecoverableSignature*)in_recoverable_signature
+  );
+
+  secp256k1_context_destroy(recoverable_signature->ctx);
+  xfree(recoverable_signature);
+}
+
+static const rb_data_type_t RecoverableSignature_DataType = {
+  "RecoverableSignature",
+  { 0, RecoverableSignature_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+#endif // HAVE_SECP256K1_RECOVERY_H
 
 /**
  * Macro: SUCCESS
@@ -848,7 +887,19 @@ KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
   return self;
 }
 
-// Data type definitions
+//
+// Secp256k1 module methods
+//
+
+static VALUE
+Secp256k1_have_recovery(VALUE module)
+{
+#ifdef HAVE_SECP256K1_RECOVERY_H
+  return Qtrue;
+#else // HAVE_SECP256K1_RECOVERY_H
+  return Qfalse;
+#endif // HAVE_SECP256K1_RECOVERY_H
+}
 
 //
 // Library initialization
@@ -856,12 +907,25 @@ KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
 
 void Init_rbsecp256k1()
 {
+  // NOTE: All classes derive from Data (rb_cData) rather than Object
+  // (rb_cObject). This makes it so we don't have to call rb_undef_alloc_func
+  // for each class and can instead simply define the allocation methods for
+  // each class.
+  //
+  // See: https://github.com/ruby/ruby/blob/trunk/doc/extension.rdoc#encapsulate-c-data-into-a-ruby-object
+
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
+  rb_define_singleton_method(
+    Secp256k1_module,
+    "have_recovery?",
+    Secp256k1_have_recovery,
+    0
+  );
 
   // Secp256k1::Context
   Secp256k1_Context_class = rb_define_class_under(
-    Secp256k1_module, "Context", rb_cObject
+    Secp256k1_module, "Context", rb_cData
   );
   rb_define_alloc_func(Secp256k1_Context_class, Context_alloc);
   rb_define_method(Secp256k1_Context_class,
@@ -900,7 +964,7 @@ void Init_rbsecp256k1()
   // Secp256k1::KeyPair
   Secp256k1_KeyPair_class = rb_define_class_under(Secp256k1_module,
                                                   "KeyPair",
-                                                  rb_cObject);
+                                                  rb_cData);
   rb_define_alloc_func(Secp256k1_KeyPair_class, KeyPair_alloc);
   rb_define_attr(Secp256k1_KeyPair_class, "public_key", 1, 0);
   rb_define_attr(Secp256k1_KeyPair_class, "private_key", 1, 0);
@@ -912,7 +976,7 @@ void Init_rbsecp256k1()
   // Secp256k1::PublicKey
   Secp256k1_PublicKey_class = rb_define_class_under(Secp256k1_module,
                                                     "PublicKey",
-                                                    rb_cObject);
+                                                    rb_cData);
   rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);
   rb_define_method(Secp256k1_PublicKey_class,
                    "initialize",
@@ -929,7 +993,7 @@ void Init_rbsecp256k1()
 
   // Secp256k1::PrivateKey
   Secp256k1_PrivateKey_class = rb_define_class_under(
-    Secp256k1_module, "PrivateKey", rb_cObject
+    Secp256k1_module, "PrivateKey", rb_cData
   );
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
   rb_define_singleton_method(Secp256k1_PrivateKey_class,
@@ -945,7 +1009,7 @@ void Init_rbsecp256k1()
   // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
                                                     "Signature",
-                                                    rb_cObject);
+                                                    rb_cData);
   rb_define_alloc_func(Secp256k1_Signature_class, Signature_alloc);
   rb_define_method(Secp256k1_Signature_class,
                    "der_encoded",
@@ -955,4 +1019,15 @@ void Init_rbsecp256k1()
                    "compact",
                    Signature_compact,
                    0);
+
+#ifdef HAVE_SECP256K1_RECOVERY_H
+  // Secp256k1::RecoverableSignature
+  Secp256k1_RecoverableSignature_class = rb_define_class_under(
+    Secp256k1_module,
+    "RecoverableSignature",
+    rb_cData
+  );
+
+  // Context recoverable signature methods
+#endif // HAVE_SECP256K1_RECOVERY_H
 }
