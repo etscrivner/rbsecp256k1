@@ -37,6 +37,13 @@
 // C internals of the library.
 //
 
+// Size of an uncompressed public key
+const size_t UNCOMPRESSED_PUBKEY_SIZE_BYTES = 65;
+// Size of a compressed public key
+const size_t COMPRESSED_PUBKEY_SIZE_BYTES = 33;
+// Size of a compact signature in bytes
+const size_t COMPACT_SIG_SIZE_BYTES = 64;
+
 // Globally define our module and its associated classes so we can instantiate
 // objects from anywhere. The use of global variables seems to be inline with
 // how the Ruby project builds its own extension gems.
@@ -58,7 +65,7 @@ typedef struct KeyPair_dummy {
 } KeyPair;
 
 typedef struct PublicKey_dummy {
-  secp256k1_pubkey pubkey;
+  secp256k1_pubkey pubkey; // Opaque object containing public key data
   secp256k1_context *ctx;
 } PublicKey;
 
@@ -68,7 +75,7 @@ typedef struct PrivateKey_dummy {
 } PrivateKey;
 
 typedef struct Signature_dummy {
-  secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature.
+  secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature
   secp256k1_context *ctx;
 } Signature;
 
@@ -80,7 +87,8 @@ typedef struct Signature_dummy {
 static void
 Context_free(void* in_context)
 {
-  Context *context = (Context*)in_context;
+  Context *context;
+  context = (Context*)in_context;
   secp256k1_context_destroy(context->ctx);
   xfree(context);
 }
@@ -96,7 +104,8 @@ static const rb_data_type_t Context_DataType = {
 static void
 PublicKey_free(void *in_public_key)
 {
-  PublicKey *public_key = (PublicKey*)in_public_key;
+  PublicKey *public_key;
+  public_key = (PublicKey*)in_public_key;
   secp256k1_context_destroy(public_key->ctx);
   xfree(public_key);
 }
@@ -112,7 +121,8 @@ static const rb_data_type_t PublicKey_DataType = {
 static void
 PrivateKey_free(void *in_private_key)
 {
-  PrivateKey *private_key = (PrivateKey*)in_private_key;
+  PrivateKey *private_key;
+  private_key = (PrivateKey*)in_private_key;
   secp256k1_context_destroy(private_key->ctx);
   xfree(private_key);
 }
@@ -266,6 +276,7 @@ PublicKey_alloc(VALUE klass)
   PublicKey *public_key;
 
   public_key = ALLOC(PublicKey);
+  MEMZERO(public_key, PublicKey, 1);
   result = TypedData_Wrap_Struct(klass, &PublicKey_DataType, public_key);
 
   return result;
@@ -309,16 +320,12 @@ PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
 static VALUE
 PublicKey_uncompressed(VALUE self)
 {
+  // TODO: Cache value after first computation
   PublicKey *public_key;
-  size_t serialized_pubkey_len = 65;
-  unsigned char serialized_pubkey[65];
+  size_t serialized_pubkey_len = UNCOMPRESSED_PUBKEY_SIZE_BYTES;
+  unsigned char serialized_pubkey[UNCOMPRESSED_PUBKEY_SIZE_BYTES];
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
-
-  if (public_key->ctx == NULL)
-  {
-    rb_raise(rb_eRuntimeError, "Public key context is NULL");
-  }
 
   secp256k1_ec_pubkey_serialize(public_key->ctx,
                                 serialized_pubkey,
@@ -336,9 +343,10 @@ PublicKey_uncompressed(VALUE self)
 static VALUE
 PublicKey_compressed(VALUE self)
 {
+  // TODO: Cache value after first computation
   PublicKey *public_key;
-  size_t serialized_pubkey_len = 65;
-  unsigned char serialized_pubkey[65];
+  size_t serialized_pubkey_len = COMPRESSED_PUBKEY_SIZE_BYTES;
+  unsigned char serialized_pubkey[COMPRESSED_PUBKEY_SIZE_BYTES];
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
@@ -462,6 +470,7 @@ Signature_alloc(VALUE klass)
 static VALUE
 Signature_der_encoded(VALUE self)
 {
+  // TODO: Cache value after first computation
   Signature *signature;
   unsigned long der_signature_len;
   unsigned char der_signature[512];
@@ -472,12 +481,12 @@ Signature_der_encoded(VALUE self)
   if (secp256k1_ecdsa_signature_serialize_der(signature->ctx,
                                               der_signature,
                                               &der_signature_len,
-                                              &(signature->sig)) == 1)
+                                              &(signature->sig)) != 1)
   {
-    return rb_str_new((char*)der_signature, der_signature_len);
+    rb_raise(rb_eRuntimeError, "could not compute DER encoded signature");
   }
 
-  rb_raise(rb_eRuntimeError, "could not compute DER encoded signature");
+  return rb_str_new((char*)der_signature, der_signature_len);
 }
 
 /**
@@ -488,19 +497,20 @@ Signature_der_encoded(VALUE self)
 static VALUE
 Signature_compact(VALUE self)
 {
+  // TODO: Cache value after first computation
   Signature *signature;
-  unsigned char compact_signature[65];
+  unsigned char compact_signature[COMPACT_SIG_SIZE_BYTES];
 
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_serialize_compact(signature->ctx,
                                                   compact_signature,
-                                                  &(signature->sig)) == 1)
+                                                  &(signature->sig)) != 1)
   {
-    return rb_str_new((char*)compact_signature, 65);
+    rb_raise(rb_eRuntimeError, "unable to compute compact signature");
   }
 
-  rb_raise(rb_eRuntimeError, "unable to compute compact signature");
+  return rb_str_new((char*)compact_signature, COMPACT_SIG_SIZE_BYTES);
 }
 
 //
@@ -600,7 +610,9 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
 
+  // TODO: Use public key constructor instead?
   public_key = ALLOC(PublicKey);
+  MEMZERO(public_key, PublicKey, 1);
   public_key->ctx = secp256k1_context_clone(context->ctx);
   result = TypedData_Wrap_Struct(Secp256k1_PublicKey_class, &PublicKey_DataType, public_key);
 
@@ -822,14 +834,27 @@ static VALUE
 KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
 {
   KeyPair *key_pair;
+  PublicKey *public_key;
+  PrivateKey *private_key;
 
   TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  TypedData_Get_Struct(
+    in_public_key, PublicKey, &PublicKey_DataType, public_key
+  );
+  TypedData_Get_Struct(
+    in_private_key, PrivateKey, &PrivateKey_DataType, private_key
+  );
 
-  key_pair->public_key = in_public_key;
-  key_pair->private_key = in_private_key;
+  // NOTE: We need to use public_key and private_key somehow to avoid a
+  // compiler warning. So do this simple check before assigning.
+  if (public_key != NULL && private_key != NULL)
+  {
+    key_pair->public_key = in_public_key;
+    key_pair->private_key = in_private_key;
 
-  rb_iv_set(self, "@public_key", in_public_key);
-  rb_iv_set(self, "@private_key", in_private_key);
+    rb_iv_set(self, "@public_key", in_public_key);
+    rb_iv_set(self, "@private_key", in_private_key);
+  }
 
   return self;
 }
