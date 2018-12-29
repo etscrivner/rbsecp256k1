@@ -35,7 +35,7 @@ uninstall:
 	gem uninstall rbsecp256k1
 
 clean:
-	rm -rf *~ rbsecp256k1-*.gem lib/rbsecp256k1/rbsecp256k1.so tmp
+	rm -rf *~ rbsecp256k1-*.gem lib/rbsecp256k1/rbsecp256k1.so tmp .yardoc
 
 docserver:
 	bundle exec yard server --reload
