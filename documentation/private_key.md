@@ -5,17 +5,9 @@ Secp256k1::PrivateKey
 
 Secp256k1::PrivateKey represents the private key part of a public-private key pair.
 
-Initializers
-------------
+Instance Methods
+----------------
 
-#### new(context, private_key_data)
+#### data
 
-Initializes the private key with the `in_context` and provided 32-byte binary
-string `private_key_data`.
-
-Class Methods
--------------
-
-#### generate(context)
-
-Generates a new private key with `in_context`.
+Returns the binary private key data as a `String`.

@@ -29,13 +29,18 @@ Returns a new [KeyPair](key_pair.md) from the given `private_key_data`. The
 `private_key_data` is expected to be a binary string. Raises a `RuntimeError`
 if the private key is invalid or key derivation fails.
 
+#### private_key_from_data(private_key_data)
+
+Creates a new [PrivateKey](private_key.md) from `private_key_data`. Raises an `ArgumentError`
+if private key is invalid.
+
 #### public_key_from_data(public_key_data)
 
 If `public_key_data` is a valid compressed or uncompressed public key, returns
 a new [PublicKey](public_key.md) object corresponding to. The `public_key_data`
 is expected to be a binary string.
 
-### recoverable_signature_from_compact(compact_signature, recovery_id)
+#### recoverable_signature_from_compact(compact_signature, recovery_id)
 
 Attempts to load a [RecoverableSignature](recoverable_signature.md) from the given `compact_signature`
 and `recovery_id`. Raises a RuntimeError if the signature data or recovery ID are invalid.
