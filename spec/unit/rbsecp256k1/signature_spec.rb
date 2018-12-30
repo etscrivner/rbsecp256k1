@@ -11,8 +11,7 @@ RSpec.describe Secp256k1::Signature do
       der_encoded = signature.der_encoded
 
       expect(der_encoded).to be_a(String)
-      expect(context.signature_from_der_encoded(der_encoded).der_encoded.bytes)
-        .to eq(der_encoded.bytes)
+      expect(context.signature_from_der_encoded(der_encoded)).to eq(signature)
     end
   end
 
@@ -22,8 +21,7 @@ RSpec.describe Secp256k1::Signature do
 
       expect(compact).to be_a(String)
       expect(compact.length).to eq(64)
-      expect(context.signature_from_compact(compact).compact.bytes)
-        .to eq(compact.bytes)
+      expect(context.signature_from_compact(compact)).to eq(signature)
     end
   end
 end

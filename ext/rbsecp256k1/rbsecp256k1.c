@@ -387,6 +387,41 @@ KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
   return self;
 }
 
+/**
+ * Compare two key pairs.
+ *
+ * Two key pairs are equal if they have the same public and private key. The
+ * keys are compared using their own comparison operators.
+ *
+ * @param other [Secp256k1::KeyPair] key pair to compare to.
+ * @return [Boolean] true if the keys match, false otherwise.
+ */
+static VALUE
+KeyPair_equals(VALUE self, VALUE other)
+{
+  KeyPair *lhs;
+  KeyPair *rhs;
+  VALUE public_keys_equal;
+  VALUE private_keys_equal;
+
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, lhs);
+  TypedData_Get_Struct(other, KeyPair, &KeyPair_DataType, rhs);
+
+  public_keys_equal = rb_funcall(
+    lhs->public_key, rb_intern("=="), 1, rhs->public_key
+  );
+  private_keys_equal = rb_funcall(
+    lhs->private_key, rb_intern("=="), 1, rhs->private_key
+  );
+
+  if (public_keys_equal == Qtrue && private_keys_equal == Qtrue)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
+}
+
 //
 // Secp256k1::PublicKey class interface
 //
@@ -495,6 +530,54 @@ PublicKey_compressed(VALUE self)
   return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
 }
 
+/**
+ * Compares two public keys.
+ *
+ * Public keys are considered equal if their compressed representations match.
+ *
+ * @param other [Secp256k1::PublicKey] public key to compare.
+ * @return [Boolean] true if the public keys are identical, false otherwise.
+ */
+static VALUE
+PublicKey_equals(VALUE self, VALUE other)
+{
+  PublicKey *lhs;
+  PublicKey *rhs;
+  unsigned char lhs_compressed[33];
+  unsigned char rhs_compressed[33];
+  size_t lhs_len;
+  size_t rhs_len;
+
+  lhs_len = 33;
+  rhs_len = 33;
+
+  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, lhs);
+  TypedData_Get_Struct(other, PublicKey, &PublicKey_DataType, rhs);
+
+  secp256k1_ec_pubkey_serialize(
+    lhs->ctx,
+    lhs_compressed,
+    &lhs_len,
+    &(lhs->pubkey),
+    SECP256K1_EC_COMPRESSED
+  );
+  secp256k1_ec_pubkey_serialize(
+    rhs->ctx,
+    rhs_compressed,
+    &rhs_len,
+    &(rhs->pubkey),
+    SECP256K1_EC_COMPRESSED
+  );
+
+  if (lhs_len == rhs_len &&
+      memcmp(lhs_compressed, rhs_compressed, lhs_len) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
+}
+
 //
 // Secp256k1::PrivateKey class interface
 //
@@ -531,6 +614,31 @@ PrivateKey_create(Context *in_context, unsigned char *in_private_key_data)
   rb_iv_set(result, "@data", rb_str_new((char*)in_private_key_data, 32));
 
   return result;
+}
+
+/**
+ * Compare two private keys.
+ *
+ * Private keys are considered equal if their data fields are identical.
+ *
+ * @param other [Secp256k1::PrivateKey] private key to compare. 
+ * @return [Boolean] true if they are equal, false otherwise.
+ */
+static VALUE
+PrivateKey_equals(VALUE self, VALUE other)
+{
+  PrivateKey *lhs;
+  PrivateKey *rhs;
+
+  TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, lhs);
+  TypedData_Get_Struct(other, PrivateKey, &PrivateKey_DataType, rhs);
+
+  if (memcmp(lhs->data, rhs->data, 32) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
 }
 
 //
@@ -599,6 +707,40 @@ Signature_compact(VALUE self)
   }
 
   return rb_str_new((char*)compact_signature, COMPACT_SIG_SIZE_BYTES);
+}
+
+/**
+ * Compares two signatures.
+ *
+ * Two signatures are equal if their compact encodings are identical.
+ *
+ * @param other [Secp256k1::Signature] signature to compare
+ * @return [Boolean] true if signatures match, false otherwise.
+ */
+static VALUE
+Signature_equals(VALUE self, VALUE other)
+{
+  Signature *lhs;
+  Signature *rhs;
+  unsigned char lhs_compact[64];
+  unsigned char rhs_compact[64];
+
+  TypedData_Get_Struct(self, Signature, &Signature_DataType, lhs);
+  TypedData_Get_Struct(other, Signature, &Signature_DataType, rhs);
+
+  secp256k1_ecdsa_signature_serialize_compact(
+    lhs->ctx, lhs_compact, &(lhs->sig)
+  );
+  secp256k1_ecdsa_signature_serialize_compact(
+    rhs->ctx, rhs_compact, &(rhs->sig)
+  );
+
+  if (memcmp(lhs_compact, rhs_compact, 64) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
 }
 
 //
@@ -739,6 +881,42 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_data)
   }
 
   rb_raise(rb_eRuntimeError, "unable to recover public key");
+}
+
+/**
+ * Compares two recoverable signatures.
+ *
+ * Two recoverable signatures their secp256k1_ecdsa_recoverable_signature data
+ * is identical.
+ *
+ * @param other [Secp256k1::RecoverableSignature] recoverable signature to
+ *   compare.
+ * @return [Boolean] true if the recoverable signatures are identical, false
+ *   otherwise.
+ */
+static VALUE
+RecoverableSignature_equals(VALUE self, VALUE other)
+{
+  RecoverableSignature *lhs;
+  RecoverableSignature *rhs;
+
+  TypedData_Get_Struct(
+    self, RecoverableSignature, &RecoverableSignature_DataType, lhs
+  );
+  TypedData_Get_Struct(
+    other, RecoverableSignature, &RecoverableSignature_DataType, rhs
+  );
+
+  // NOTE: It is safe to directly compare these data structures rather than
+  // first serializing and then comparing.
+  if (memcmp(&(lhs->sig),
+             &(rhs->sig),
+             sizeof(secp256k1_ecdsa_recoverable_signature)) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
 }
 
 #endif // HAVE_SECP256K1_RECOVERY_H
@@ -1261,6 +1439,7 @@ void Init_rbsecp256k1()
                    "initialize",
                    KeyPair_initialize,
                    2);
+  rb_define_method(Secp256k1_KeyPair_class, "==", KeyPair_equals, 1);
 
   // Secp256k1::PublicKey
   Secp256k1_PublicKey_class = rb_define_class_under(Secp256k1_module,
@@ -1275,6 +1454,7 @@ void Init_rbsecp256k1()
                    "uncompressed",
                    PublicKey_uncompressed,
                    0);
+  rb_define_method(Secp256k1_PublicKey_class, "==", PublicKey_equals, 1);
 
   // Secp256k1::PrivateKey
   Secp256k1_PrivateKey_class = rb_define_class_under(
@@ -1282,6 +1462,7 @@ void Init_rbsecp256k1()
   );
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
   rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
+  rb_define_method(Secp256k1_PrivateKey_class, "==", PrivateKey_equals, 1);
 
   // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
@@ -1296,6 +1477,10 @@ void Init_rbsecp256k1()
                    "compact",
                    Signature_compact,
                    0);
+  rb_define_method(Secp256k1_Signature_class,
+                   "==",
+                   Signature_equals,
+                   1);
 
 #ifdef HAVE_SECP256K1_RECOVERY_H
   // Secp256k1::RecoverableSignature
@@ -1324,6 +1509,12 @@ void Init_rbsecp256k1()
     Secp256k1_RecoverableSignature_class,
     "recover_public_key",
     RecoverableSignature_recover_public_key,
+    1
+  );
+  rb_define_method(
+    Secp256k1_RecoverableSignature_class,
+    "==",
+    RecoverableSignature_equals,
     1
   );
 

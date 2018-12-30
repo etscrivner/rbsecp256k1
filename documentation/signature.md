@@ -16,3 +16,7 @@ Returns the DER encoded representation of this signature.
 #### compact
 
 Returns the compact 64-byte representation of this signature.
+
+#### ==(other)
+
+Returns `true` if this signature matches `other`.

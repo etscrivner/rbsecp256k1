@@ -22,3 +22,7 @@ Recovers the public key corresponding to the recoverable signature. Returns a
 #### to_signature
 
 Converts a recoverable signature to a non-recoverable [Signature](signature.md) object.
+
+#### ==(other)
+
+Returns `true` if this recoverable signature matches `other`.
