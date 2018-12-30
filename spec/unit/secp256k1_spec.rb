@@ -10,4 +10,10 @@ RSpec.describe Secp256k1 do
       expect(Secp256k1.have_recovery?).to eq(with_recovery)
     end
   end
+
+  describe '.have_ecdh?' do
+    it 'has the expected ecdh module' do
+      expect(Secp256k1.have_ecdh?).to be false
+    end
+  end
 end

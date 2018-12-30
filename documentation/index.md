@@ -6,14 +6,14 @@ Find your topic in the index, or refer to one of the examples below.
 Classes and Modules
 -------------------
 
-Classes                                          | Utilities
-:------------------------------------------------|:--------------------------------
-[Context](context.md)                            | [Util](util.md)
-[KeyPair](key_pair.md)                           |
-[PublicKey](public_key.md)                       |
-[PrivateKey](private_key.md)                     |
-[Signature](signature.md)                        |
-[RecoverableSignature](recoverable_signature.md) |
+| Module                     | Classes                                          | Utilities
+|----------------------------|:-------------------------------------------------|:--------------------------------
+| [Secp256k1](secp256k1.md)  | [Context](context.md)                            | [Util](util.md)
+|                            | [KeyPair](key_pair.md)                           |
+|                            | [PublicKey](public_key.md)                       |
+|                            | [PrivateKey](private_key.md)                     |
+|                            | [Signature](signature.md)                        |
+|                            | [RecoverableSignature](recoverable_signature.md) |
 
 Glossary
 --------
