@@ -8,6 +8,10 @@ os:
   - "linux"
   - "osx"
 
+env:
+  - WITH_RECOVERY=1
+  - WITH_RECOVERY=0
+
 addons:
   apt:
     packages:

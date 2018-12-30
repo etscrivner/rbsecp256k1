@@ -152,4 +152,49 @@ RSpec.describe Secp256k1::Context do
         .to be false
     end
   end
+
+  if Secp256k1.have_recovery?
+    describe '#sign_recoverable' do
+      let(:text_message) { 'This is some text' }
+      let(:binary_data) { "yuyY\xC8\v\x9E\xBEu\xB9\x02\xEA\xA5\x82V\xAC\xAA9\xA0\xA4U\"z\x99,J\x90\xADk8\xB2\xE1" }
+
+      it 'can sign text data' do
+        signature = subject.sign_recoverable(key_pair.private_key, text_message)
+
+        expect(signature).to be_a(Secp256k1::RecoverableSignature)
+      end
+
+      it 'can sign binary data' do
+        signature = subject.sign_recoverable(key_pair.private_key, binary_data)
+
+        expect(signature).to be_a(Secp256k1::RecoverableSignature)
+      end
+
+      it 'raises an error if private key not given' do
+        expect do
+          subject.sign_recoverable(subject, text_message)
+        end.to raise_error(TypeError)
+      end
+    end
+
+    describe '#recoverable_signature_from_compact' do
+      it 'recovers signature from data' do
+        signature = subject.sign_recoverable(key_pair.private_key, 'test')
+        compact, recovery_id = signature.compact
+
+        recovered_signature = subject.recoverable_signature_from_compact(
+          compact, recovery_id
+        )
+
+        expect(recovered_signature).to be_a(Secp256k1::RecoverableSignature)
+        expect(recovered_signature.compact.first.bytes).to eq(compact.bytes)
+      end
+
+      it 'raises an error if compact signature is not the right size' do
+        expect do
+          subject.recoverable_signature_from_compact('test', 1)
+        end.to raise_error(ArgumentError, 'compact signature is not 64 bytes')
+      end
+    end
+  end
 end

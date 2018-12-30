@@ -2,16 +2,30 @@
 
 # Retrieve operating system name
 OS=$(shell uname -s)
+# Define the flags for libsecp256k1
+LIBSECP256K1_FLAGS=
 
 # On macOS we need to prefix to homebrew OpenSSL path before building
 ifeq ($(OS),Darwin)
 	COMPILE_PREFIX=PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
 endif
 
+ifeq ($(WITH_RECOVERY), 1)
+	LIBSECP256K1_FLAGS=--enable-module-recovery
+endif
+
 all: test
 
 deps:
-	cd vendor/secp256k1 && ./autogen.sh && ./configure --enable-module-recovery && make && sudo make install
+	cd vendor/secp256k1 && \
+	./autogen.sh && \
+	./configure $(LIBSECP256K1_FLAGS) && \
+	make && \
+	sudo make install
+
+uninstall-deps:
+	cd vendor/secp256k1 && \
+	sudo make uninstall
 
 setup:
 	bundle install
