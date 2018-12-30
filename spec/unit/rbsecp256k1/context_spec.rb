@@ -19,10 +19,8 @@ RSpec.describe Secp256k1::Context do
       key_pair1 = subject.generate_key_pair
       key_pair2 = subject.generate_key_pair
 
-      expect(key_pair1.private_key.data.bytes)
-        .not_to eq(key_pair2.private_key.data.bytes)
-      expect(key_pair1.public_key.compressed.bytes)
-        .not_to eq(key_pair2.public_key.compressed.bytes)
+      expect(key_pair1).not_to eq(key_pair2)
+      expect(key_pair1).not_to eq(key_pair2)
     end
   end
 
@@ -53,11 +51,11 @@ RSpec.describe Secp256k1::Context do
 
   describe '#private_key_from_data' do
     it 'loads a private key from data' do
-      private_key = subject.private_key_from_data(private_key_data)
+      private_key = subject.private_key_from_data(key_pair.private_key.data)
 
       expect(private_key).to be_a(Secp256k1::PrivateKey)
       expect(private_key.data.length).to eq(32)
-      expect(private_key.data.bytes).to eq(private_key_data.bytes)
+      expect(private_key).to eq(key_pair.private_key)
     end
 
     it 'raises an error if private key has wrong length' do
@@ -71,8 +69,7 @@ RSpec.describe Secp256k1::Context do
     it 'correctly loads a compressed public key' do
       public_key = subject.public_key_from_data(key_pair.public_key.compressed)
 
-      expect(public_key.compressed.bytes)
-        .to eq(key_pair.public_key.compressed.bytes)
+      expect(public_key).to eq(key_pair.public_key)
     end
 
     it 'correctly loads an uncompressed public key' do
@@ -80,8 +77,7 @@ RSpec.describe Secp256k1::Context do
         key_pair.public_key.uncompressed
       )
 
-      expect(public_key.uncompressed.bytes)
-        .to eq(key_pair.public_key.uncompressed.bytes)
+      expect(public_key).to eq(key_pair.public_key)
     end
 
     it 'raises an error if public key is invalid' do
@@ -130,6 +126,7 @@ RSpec.describe Secp256k1::Context do
       result = subject.signature_from_compact(signature.compact)
 
       expect(result).to be_a(Secp256k1::Signature)
+      expect(result).to eq(signature)
     end
 
     it 'raises an error if invalid signature data type is given' do
@@ -142,9 +139,10 @@ RSpec.describe Secp256k1::Context do
   describe '#signature_from_der_encoded' do
     it 'can load a der encoded signature' do
       signature = subject.sign(key_pair.private_key, message)
-      result = subject.signature_from_compact(signature.der_encoded)
+      result = subject.signature_from_der_encoded(signature.der_encoded)
 
       expect(result).to be_a(Secp256k1::Signature)
+      expect(result).to eq(signature)
     end
 
     it 'raises an error if invalid signature data is given' do
@@ -212,7 +210,7 @@ RSpec.describe Secp256k1::Context do
         )
 
         expect(recovered_signature).to be_a(Secp256k1::RecoverableSignature)
-        expect(recovered_signature.compact.first.bytes).to eq(compact.bytes)
+        expect(recovered_signature).to eq(signature)
       end
 
       it 'raises an error if compact signature is not the right size' do

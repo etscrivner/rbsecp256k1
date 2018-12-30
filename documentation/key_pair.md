@@ -22,3 +22,7 @@ Returns the [PublicKey](public_key.md) part of this key pair.
 #### private_key
 
 Returns the [PrivateKey](private_key.md) part of this key pair.
+
+#### ==(other)
+
+Returns `true` if the `other` has the same public and private key.

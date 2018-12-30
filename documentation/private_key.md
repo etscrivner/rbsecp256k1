@@ -11,3 +11,7 @@ Instance Methods
 #### data
 
 Returns the binary private key data as a `String`.
+
+#### ==(other)
+
+Returns `true` if this private key matches `other`.

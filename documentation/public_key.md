@@ -17,3 +17,7 @@ Returns the binary compressed representation of this public key.
 #### uncompressed
 
 Returns the binary uncompressed representation of this public key.
+
+#### ==(other)
+
+Return `true` if this public key matches `other`.
