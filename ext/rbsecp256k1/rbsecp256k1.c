@@ -304,6 +304,89 @@ SignData(secp256k1_context *in_context,
   return RESULT_FAILURE;
 }
 
+#ifdef HAVE_SECP256K1_RECOVERY_H
+
+/**
+ * Computes the recoverable ECDSA signature of the given data.
+ *
+ * ECDSA signing involves the following steps:
+ *   1. Compute the 32-byte SHA-256 hash of the given data.
+ *   2. Sign the 32-byte hash using the private key provided.
+ *
+ * \param in_context libsecp256k1 context
+ * \param in_data Data to be signed
+ * \param in_data_len Length of data to be signed
+ * \param in_private_key Private key to be used for signing
+ * \param out_signature Recoverable signature computed
+ * \return RESULT_SUCCESS if the hash and signature were computed successfully,
+ *   RESULT_FAILURE if signing failed or DER encoding failed.
+ */
+static ResultT
+RecoverableSignData(secp256k1_context *in_context,
+                    unsigned char *in_data,
+                    unsigned long in_data_len,
+                    unsigned char *in_private_key,
+                    secp256k1_ecdsa_recoverable_signature *out_signature)
+{
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+
+  // Compute the SHA-256 hash of data
+  SHA256(in_data, in_data_len, hash);
+
+  if (secp256k1_ecdsa_sign_recoverable(in_context,
+                                       out_signature,
+                                       hash,
+                                       in_private_key,
+                                       NULL,
+                                       NULL) == 1)
+  {
+    return RESULT_SUCCESS;
+  }
+
+  return RESULT_FAILURE;
+}
+
+#endif // HAVE_SECP256K1_RECOVERY_H
+
+//
+// Secp256k1::KeyPair class interface
+//
+
+static VALUE
+KeyPair_alloc(VALUE klass)
+{
+  KeyPair *key_pair;
+
+  key_pair = ALLOC(KeyPair);
+
+  return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
+}
+
+/**
+ * Default constructor.
+ *
+ * @param in_public_key [Secp256k1::PublicKey] public key
+ * @param in_private_key [Secp256k1::PrivateKey] private key
+ * @return [Secp256k1::KeyPair] newly initialized key pair.
+ */
+static VALUE
+KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
+{
+  KeyPair *key_pair;
+
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  Check_TypedStruct(in_public_key, &PublicKey_DataType);
+  Check_TypedStruct(in_private_key, &PrivateKey_DataType);
+
+  key_pair->public_key = in_public_key;
+  key_pair->private_key = in_private_key;
+
+  rb_iv_set(self, "@public_key", in_public_key);
+  rb_iv_set(self, "@private_key", in_private_key);
+
+  return self;
+}
+
 //
 // Secp256k1::PublicKey class interface
 //
@@ -449,6 +532,7 @@ PrivateKey_generate(VALUE klass, VALUE in_context)
  *   generation.
  * @param in_private_key_data [String] binary string with 32 bytes of private
  *   key data.
+ * @return [Secp256k1::PrivateKey]
  * @raise [ArgumentError] if private key data is not 32 bytes long or is
  *   invalid.
  */
@@ -553,6 +637,148 @@ Signature_compact(VALUE self)
 }
 
 //
+// Secp256k1::RecoverableSignature class interface
+//
+
+#ifdef HAVE_SECP256K1_RECOVERY_H
+
+static VALUE
+RecoverableSignature_alloc(VALUE klass)
+{
+  VALUE new_instance;
+  RecoverableSignature *recoverable_signature;
+
+  recoverable_signature = ALLOC(RecoverableSignature);
+  MEMZERO(recoverable_signature, RecoverableSignature, 1);
+  new_instance = TypedData_Wrap_Struct(
+    klass, &RecoverableSignature_DataType, recoverable_signature
+  );
+
+  return new_instance;
+}
+
+/**
+ * Returns the compact encoding of recoverable signature.
+ *
+ * @return [Array] first element is the 64 byte compact encoding of signature,
+ *   the second element is the integer recovery ID.
+ * @raise [RuntimeError] if signature serialization fails.
+ */
+static VALUE
+RecoverableSignature_compact(VALUE self)
+{
+  RecoverableSignature *recoverable_signature;
+  unsigned char compact_sig[64];
+  int recovery_id;
+  VALUE result;
+
+  TypedData_Get_Struct(
+    self,
+    RecoverableSignature,
+    &RecoverableSignature_DataType,
+    recoverable_signature
+  );
+
+  if (secp256k1_ecdsa_recoverable_signature_serialize_compact(
+        recoverable_signature->ctx,
+        compact_sig,
+        &recovery_id,
+        &(recoverable_signature->sig)) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "unable to serialize recoverable signature");
+  }
+
+  // Create a new array with room for 2 elements and push data onto it
+  result = rb_ary_new2(2);
+  rb_ary_push(result, rb_str_new((char*)compact_sig, 64));
+  rb_ary_push(result, rb_int_new(recovery_id));
+
+  return result;
+}
+
+/**
+ * Convert a recoverable signature to a non-recoverable signature.
+ *
+ * @return [Secp256k1::Signature] non-recoverable signature derived from this
+ *   recoverable signature.
+ */
+static VALUE
+RecoverableSignature_to_signature(VALUE self)
+{
+  RecoverableSignature *recoverable_signature;
+  Signature *signature;
+  VALUE result;
+
+  TypedData_Get_Struct(
+    self,
+    RecoverableSignature,
+    &RecoverableSignature_DataType,
+    recoverable_signature
+  );
+
+  result = Signature_alloc(Secp256k1_Signature_class);
+  TypedData_Get_Struct(
+    result,
+    Signature,
+    &Signature_DataType,
+    signature
+  );
+
+  // NOTE: This method cannot fail
+  secp256k1_ecdsa_recoverable_signature_convert(
+    recoverable_signature->ctx,
+    &(signature->sig),
+    &(recoverable_signature->sig));
+
+  signature->ctx = secp256k1_context_clone(recoverable_signature->ctx);
+  return result;
+}
+
+/**
+ * Attempts to recover the public key associated with this signature.
+ *
+ * @param in_data [String] data that this signature signed.
+ * @return [Secp256k1::PublicKey] recovered public key.
+ * @raise [RuntimeError] if the public key could not be recovered.
+ */
+static VALUE
+RecoverableSignature_recover_public_key(VALUE self, VALUE in_data)
+{
+  RecoverableSignature *recoverable_signature;
+  PublicKey *public_key;
+  VALUE result;
+  unsigned char *in_data_ptr;
+  unsigned char hash[32];
+
+  Check_Type(in_data, T_STRING);
+  TypedData_Get_Struct(
+    self,
+    RecoverableSignature,
+    &RecoverableSignature_DataType,
+    recoverable_signature
+  );
+  in_data_ptr = (unsigned char*)StringValuePtr(in_data);
+
+  SHA256(in_data_ptr, RSTRING_LEN(in_data), hash);
+
+  result = PublicKey_alloc(Secp256k1_PublicKey_class);
+  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+
+  if (secp256k1_ecdsa_recover(recoverable_signature->ctx,
+                              &(public_key->pubkey),
+                              &(recoverable_signature->sig),
+                              hash) == 1)
+  {
+    public_key->ctx = secp256k1_context_clone(recoverable_signature->ctx);
+    return result;
+  }
+
+  rb_raise(rb_eRuntimeError, "unable to recover public key");
+}
+
+#endif // HAVE_SECP256K1_RECOVERY_H
+
+//
 // Secp256k1::Context class interface
 //
 
@@ -576,6 +802,7 @@ Context_alloc(VALUE klass)
  *
  * Context initialization should be infrequent as it is an expensive operation.
  *
+ * @return [Secp256k1::Context] 
  * @raise [RuntimeError] if context randomization fails.
  */
 static VALUE
@@ -649,11 +876,8 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
 
-  // TODO: Use public key constructor instead?
-  public_key = ALLOC(PublicKey);
-  MEMZERO(public_key, PublicKey, 1);
-  public_key->ctx = secp256k1_context_clone(context->ctx);
-  result = TypedData_Wrap_Struct(Secp256k1_PublicKey_class, &PublicKey_DataType, public_key);
+  result = PublicKey_alloc(Secp256k1_PublicKey_class);
+  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
   if (secp256k1_ec_pubkey_parse(context->ctx,
                                 &(public_key->pubkey),
@@ -663,6 +887,7 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
     rb_raise(rb_eRuntimeError, "invalid public key data");
   }
 
+  public_key->ctx = secp256k1_context_clone(context->ctx);
   return result;
 }
 
@@ -776,6 +1001,7 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
  * @param in_private_key [Secp256k1::PrivateKey] private key to use for
  *   signing.
  * @param in_data [String] binary or text data to be signed.
+ * @return [Secp256k1::Signature] signature resulting from signing data.
  * @raise [RuntimeError] if signature computation fails.
  */
 static VALUE
@@ -816,26 +1042,26 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
  * @param in_signature [Secp256k1::Signature] signature to be verified.
  * @param in_pubkey [Secp256k1::PublicKey] public key to verify signature
  *   against.
- * @param in_message [String] text or binary data to verify signature against.
+ * @param in_data [String] text or binary data to verify signature against.
  * @return [Bool] True if the signature is valid, false otherwise.
  */
 static VALUE
-Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message)
+Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_data)
 {
   Context *context;
   PublicKey *public_key;
   Signature *signature;
-  unsigned char *message_ptr;
+  unsigned char *data_ptr;
   unsigned char hash[SHA256_DIGEST_LENGTH];
 
-  Check_Type(in_message, T_STRING);
+  Check_Type(in_data, T_STRING);
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   TypedData_Get_Struct(in_pubkey, PublicKey, &PublicKey_DataType, public_key);
   TypedData_Get_Struct(in_signature, Signature, &Signature_DataType, signature);
 
-  message_ptr = (unsigned char*)StringValuePtr(in_message);
-  SHA256(message_ptr, RSTRING_LEN(in_message), hash);
+  data_ptr = (unsigned char*)StringValuePtr(in_data);
+  SHA256(data_ptr, RSTRING_LEN(in_data), hash);
   
   if (secp256k1_ecdsa_verify(context->ctx,
                              &(signature->sig),
@@ -848,44 +1074,108 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_message
   return Qfalse;
 }
 
-//
-// Secp256k1::KeyPair class interface
-//
+// Context recoverable signature methods
+#ifdef HAVE_SECP256K1_RECOVERY_H
 
+/**
+ * Computes the recoverable ECDSA signature of data signed with private key.
+ *
+ * @param in_private_key [Secp256k1::PrivateKey] private key to sign with.
+ * @param in_data [String] data to be signed.
+ * @return [Secp256k1::RecoverableSignature] recoverable signature produced by
+ *   signing the SHA-256 hash of `in_data` with `in_private_key`.
+ */
 static VALUE
-KeyPair_alloc(VALUE klass)
+Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_data)
 {
-  KeyPair *key_pair;
+  Context *context;
+  PrivateKey *private_key;
+  RecoverableSignature *recoverable_signature;
+  unsigned char *in_data_ptr;
+  VALUE result;
 
-  key_pair = ALLOC(KeyPair);
+  Check_Type(in_data, T_STRING);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  TypedData_Get_Struct(
+    in_private_key, PrivateKey, &PrivateKey_DataType, private_key
+  );
+  in_data_ptr = (unsigned char*)StringValuePtr(in_data);
 
-  return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
+  result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
+  TypedData_Get_Struct(
+    result,
+    RecoverableSignature,
+    &RecoverableSignature_DataType,
+    recoverable_signature
+  );
+
+  if (SUCCESS(RecoverableSignData(context->ctx,
+                                  in_data_ptr,
+                                  RSTRING_LEN(in_data),
+                                  private_key->data,
+                                  &(recoverable_signature->sig))))
+  {
+    recoverable_signature->ctx = secp256k1_context_clone(context->ctx);
+    return result;
+  }
+
+  rb_raise(rb_eRuntimeError, "unable to compute recoverable signature");
 }
 
 /**
- * Default constructor.
+ * Loads recoverable signature from compact representation and recovery ID.
  *
- * @param in_public_key [Secp256k1::PublicKey] public key
- * @param in_private_key [Secp256k1::PrivateKey] private key
- * @return [Secp256k1::KeyPair] newly initialized key pair.
+ * @param in_compact_sig [String] binary string containing compact signature
+ *   data.
+ * @param in_recovery_id [Integer] recovery ID.
+ * @return [Secp256k1::RecoverableSignature] signature parsed from data.
+ * @raise [RuntimeError] if signature data or recovery ID is invalid.
+ * @raise [ArgumentError] if compact signature is not 64 bytes.
  */
 static VALUE
-KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
+Context_recoverable_signature_from_compact(
+  VALUE self, VALUE in_compact_sig, VALUE in_recovery_id)
 {
-  KeyPair *key_pair;
+  Context *context;
+  RecoverableSignature *recoverable_signature;
+  unsigned char *compact_sig;
+  int recovery_id;
+  VALUE result;
 
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
-  Check_TypedStruct(in_public_key, &PublicKey_DataType);
-  Check_TypedStruct(in_private_key, &PrivateKey_DataType);
+  Check_Type(in_compact_sig, T_STRING);
+  Check_Type(in_recovery_id, T_FIXNUM);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
 
-  key_pair->public_key = in_public_key;
-  key_pair->private_key = in_private_key;
+  compact_sig = (unsigned char*)StringValuePtr(in_compact_sig);
+  recovery_id = FIX2INT(in_recovery_id);
 
-  rb_iv_set(self, "@public_key", in_public_key);
-  rb_iv_set(self, "@private_key", in_private_key);
+  if (RSTRING_LEN(in_compact_sig) != 64)
+  {
+    rb_raise(rb_eArgError, "compact signature is not 64 bytes");
+  }
 
-  return self;
+  result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
+  TypedData_Get_Struct(
+    result,
+    RecoverableSignature,
+    &RecoverableSignature_DataType,
+    recoverable_signature
+  );
+
+  if (secp256k1_ecdsa_recoverable_signature_parse_compact(
+        context->ctx,
+        &(recoverable_signature->sig),
+        compact_sig,
+        recovery_id) == 1)
+  {
+    recoverable_signature->ctx = secp256k1_context_clone(context->ctx);
+    return result;
+  }
+  
+  rb_raise(rb_eRuntimeError, "unable to parse recoverable signature");
 }
+
+#endif // HAVE_SECP256K1_RECOVERY_H
 
 //
 // Secp256k1 module methods
@@ -1027,7 +1317,41 @@ void Init_rbsecp256k1()
     "RecoverableSignature",
     rb_cData
   );
+  rb_define_alloc_func(
+    Secp256k1_RecoverableSignature_class,
+    RecoverableSignature_alloc
+  );
+  rb_define_method(
+    Secp256k1_RecoverableSignature_class,
+    "compact",
+    RecoverableSignature_compact,
+    0
+  );
+  rb_define_method(
+    Secp256k1_RecoverableSignature_class,
+    "to_signature",
+    RecoverableSignature_to_signature,
+    0
+  );
+  rb_define_method(
+    Secp256k1_RecoverableSignature_class,
+    "recover_public_key",
+    RecoverableSignature_recover_public_key,
+    1
+  );
 
   // Context recoverable signature methods
+  rb_define_method(
+    Secp256k1_Context_class,
+    "sign_recoverable",
+    Context_sign_recoverable,
+    2
+  );
+  rb_define_method(
+    Secp256k1_Context_class,
+    "recoverable_signature_from_compact",
+    Context_recoverable_signature_from_compact,
+    2
+  );
 #endif // HAVE_SECP256K1_RECOVERY_H
 }

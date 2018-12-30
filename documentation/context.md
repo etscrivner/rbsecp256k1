@@ -35,12 +35,23 @@ If `public_key_data` is a valid compressed or uncompressed public key, returns
 a new [PublicKey](public_key.md) object corresponding to. The `public_key_data`
 is expected to be a binary string.
 
+### recoverable_signature_from_compact(compact_signature, recovery_id)
+
+Attempts to load a [RecoverableSignature](recoverable_signature.md) from the given `compact_signature`
+and `recovery_id`. Raises a RuntimeError if the signature data or recovery ID are invalid.
+
 #### sign(private_key, data)
 
 Signs the SHA-256 hash of the given `data` using `private_key` and returns a
 new [Signature](signature.md). The `private_key` is expected to be a
 [PrivateKey](private_key.md) object and `data` can be either a binary string or
 text.
+
+### sign_recoverable(private_key, data)
+
+Signs the SHA-256 hash of the given `data` using `private_key` and returns a
+new [RecoverableSignature](recoverable_signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md) and
+`data` can be either a binary string or text.
 
 #### signature_from_compact(compact_signature)
 

@@ -6,13 +6,14 @@ Find your topic in the index, or refer to one of the examples below.
 Classes and Modules
 -------------------
 
-Classes                          | Utilities
-:--------------------------------|:--------------------------------
-[Context](context.md)            | [Util](util.md)
-[KeyPair](key_pair.md)           |
-[PublicKey](public_key.md)       |
-[PrivateKey](private_key.md)     |
-[Signature](signature.md)        |
+Classes                                          | Utilities
+:------------------------------------------------|:--------------------------------
+[Context](context.md)                            | [Util](util.md)
+[KeyPair](key_pair.md)                           |
+[PublicKey](public_key.md)                       |
+[PrivateKey](private_key.md)                     |
+[Signature](signature.md)                        |
+[RecoverableSignature](recoverable_signature.md) |
 
 Glossary
 --------
@@ -30,6 +31,9 @@ compressed or uncompressed format.
 
 **[Signature](signature.md)** is an ECDSA signature of the SHA-256 message hash
 of a piece of data.
+
+**[RecoverableSignature](recoverable_signature.md)** is a recoverable ECDSA signature of the SHA-256 message
+hash of a piece of data.
 
 Examples
 --------
