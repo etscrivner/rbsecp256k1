@@ -4,6 +4,7 @@ RSpec.describe Secp256k1::Context do
   subject { Secp256k1::Context.new }
   let(:key_pair) { subject.generate_key_pair }
   let(:message) { 'test message' }
+  let(:private_key_data) { "I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9" }
 
   describe '#generate_key_pair' do
     it 'generates a new key pair' do
@@ -26,7 +27,6 @@ RSpec.describe Secp256k1::Context do
   end
 
   describe '#key_pair_from_private_key' do
-    let(:private_key_data) { "I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9" }
     let(:expected_private_key_hex) { '490a5885ae7a7d0a9ba45c8129d49a71fd4809be8e50c52ec61f372d86a0cbf9' }
     let(:expected_compressed_pubkey_hex) { '0224a2e7bb31c47c744ee6e44a2ded9a5baf662d3c14845e51512214c391e4f2b5' }
 
@@ -51,6 +51,22 @@ RSpec.describe Secp256k1::Context do
     end
   end
 
+  describe '#private_key_from_data' do
+    it 'loads a private key from data' do
+      private_key = subject.private_key_from_data(private_key_data)
+
+      expect(private_key).to be_a(Secp256k1::PrivateKey)
+      expect(private_key.data.length).to eq(32)
+      expect(private_key.data.bytes).to eq(private_key_data.bytes)
+    end
+
+    it 'raises an error if private key has wrong length' do
+      expect do
+        subject.private_key_from_data('test')
+      end.to raise_error(ArgumentError, 'private key data must be 32 bytes in length')
+    end
+  end
+
   describe '#public_key_from_data' do
     it 'correctly loads a compressed public key' do
       public_key = subject.public_key_from_data(key_pair.public_key.compressed)
@@ -69,10 +85,19 @@ RSpec.describe Secp256k1::Context do
     end
 
     it 'raises an error if public key is invalid' do
-      # TODO: If this test is ever flakey replace randomness with static bad key data
       expect do
         subject.public_key_from_data(Random.new.bytes(64))
       end.to raise_error(RuntimeError, 'invalid public key data')
+    end
+  end
+
+  describe '#private_key_from_data' do
+    it 'correctly loads private key from data' do
+      data = Random.new.bytes(32)
+      private_key = subject.private_key_from_data(data)
+
+      expect(private_key).to be_a(Secp256k1::PrivateKey)
+      expect(private_key.data.bytes).to eq(data.bytes)
     end
   end
 

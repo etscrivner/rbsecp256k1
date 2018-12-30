@@ -404,35 +404,49 @@ PublicKey_alloc(VALUE klass)
   return result;
 }
 
-/**
- * Initialize a new public key from the given context and private key.
- *
- * @param in_context [Secp256k1::Context] context instance to be used in derivation
- * @param in_private_key [Secp256k1::PrivateKey] private key to derive public key from
- * @return [Secp256k1::PublicKey] public key derived from private key
- * @raise [TypeError] if private key data is invalid
- */
 static VALUE
-PublicKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key)
+PublicKey_create_from_private_key(Context *in_context,
+                                  unsigned char *private_key_data)
 {
-  Context *context;
   PublicKey *public_key;
-  PrivateKey *private_key;
+  VALUE result;
 
-  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
-  TypedData_Get_Struct(in_context, Context, &Context_DataType, context);
-  TypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
+  result = PublicKey_alloc(Secp256k1_PublicKey_class);
+  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
-  if (secp256k1_ec_pubkey_create(context->ctx,
-                                 &(public_key->pubkey),
-                                 private_key->data) == 0)
+  if (secp256k1_ec_pubkey_create(
+        in_context->ctx,
+        (&public_key->pubkey),
+        private_key_data) != 1)
   {
-    rb_raise(rb_eTypeError, "Invalid private key data");
+    rb_raise(rb_eTypeError, "invalid private key data");
   }
 
-  public_key->ctx = secp256k1_context_clone(context->ctx);
+  public_key->ctx = secp256k1_context_clone(in_context->ctx);
+  return result;
+}
 
-  return self;
+static VALUE
+PublicKey_create_from_data(Context *in_context,
+                           unsigned char *in_public_key_data,
+                           unsigned int in_public_key_data_len)
+{
+  PublicKey *public_key;
+  VALUE result;
+
+  result = PublicKey_alloc(Secp256k1_PublicKey_class);
+  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+
+  if (secp256k1_ec_pubkey_parse(in_context->ctx,
+                                &(public_key->pubkey),
+                                in_public_key_data,
+                                in_public_key_data_len) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "invalid public key data");
+  }
+
+  public_key->ctx = secp256k1_context_clone(in_context->ctx);
+  return result;
 }
 
 /**
@@ -485,7 +499,6 @@ PublicKey_compressed(VALUE self)
 // Secp256k1::PrivateKey class interface
 //
 
-/* Allocate space for new private key internal data */
 static VALUE
 PrivateKey_alloc(VALUE klass)
 {
@@ -499,79 +512,31 @@ PrivateKey_alloc(VALUE klass)
   return new_instance;
 }
 
-/**
- * Generates a new random private key.
- *
- * @param in_context [Secp256k1::Context] context to be used in private key
- *   generation.
- * @return [Secp256k1::PrivateKey] new, randomly generated private key.
- */
 static VALUE
-PrivateKey_generate(VALUE klass, VALUE in_context)
-{
-  unsigned char private_key_bytes[32];
-
-  if (FAILURE(GenerateRandomBytes(private_key_bytes, 32)))
-  {
-    rb_raise(rb_eRuntimeError, "Random bytes generation failed.");
-  }
-
-  return rb_funcall(
-    klass,
-    rb_intern("new"),
-    2,
-    in_context,
-    rb_str_new((char*)private_key_bytes, 32)
-  );
-}
-
-/**
- * Initialize a new private key from binary data.
- *
- * @param in_context [Secp256k1::Context] context to be used in private key
- *   generation.
- * @param in_private_key_data [String] binary string with 32 bytes of private
- *   key data.
- * @return [Secp256k1::PrivateKey]
- * @raise [ArgumentError] if private key data is not 32 bytes long or is
- *   invalid.
- */
-static VALUE
-PrivateKey_initialize(VALUE self, VALUE in_context, VALUE in_private_key_data)
+PrivateKey_create(Context *in_context, unsigned char *in_private_key_data)
 {
   PrivateKey *private_key;
-  Context *context;
-  unsigned char *private_key_data;
+  VALUE result;
 
-  Check_Type(in_private_key_data, T_STRING);
-  TypedData_Get_Struct(in_context, Context, &Context_DataType, context);
-  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
-
-  if (RSTRING_LEN(in_private_key_data) != 32)
-  {
-    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
-  }
-
-  if (secp256k1_ec_seckey_verify(context->ctx, private_key_data) != 1)
+  if (secp256k1_ec_seckey_verify(in_context->ctx, in_private_key_data) != 1)
   {
     rb_raise(rb_eArgError, "invalid private key data");
-  }    
+  }
 
-  TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
-  MEMCPY(private_key->data, private_key_data, char, 32);
-  private_key->ctx = secp256k1_context_clone(context->ctx);
+  result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
+  TypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
+  MEMCPY(private_key->data, in_private_key_data, char, 32);
+  private_key->ctx = secp256k1_context_clone(in_context->ctx);
 
-  // Set the PrivateKey.data attribute for later reading
-  rb_iv_set(self, "@data", in_private_key_data);
+  rb_iv_set(result, "@data", rb_str_new((char*)in_private_key_data, 32));
 
-  return self;
+  return result;
 }
 
 //
 // Secp256k1::Signature class interface
 //
 
-/* Allocate memory for Signature object */
 static VALUE
 Signature_alloc(VALUE klass)
 {
@@ -832,27 +797,35 @@ Context_initialize(VALUE self)
  * Generate a new public-private key pair.
  *
  * @return [Secp256k1::KeyPair] newly generated key pair.
+ * @raise [RuntimeError] if private key generation fails.
  */
 static VALUE
 Context_generate_key_pair(VALUE self)
 {
+  Context *context;
   VALUE private_key;
   VALUE public_key;
-  VALUE key_pair;
+  VALUE result;
+  unsigned char private_key_bytes[32];
 
-  private_key = PrivateKey_generate(Secp256k1_PrivateKey_class, self);
-  public_key = rb_funcall(Secp256k1_PublicKey_class,
-                          rb_intern("new"),
-                          2,
-                          self,
-                          private_key);
-  key_pair = rb_funcall(Secp256k1_KeyPair_class,
-                        rb_intern("new"),
-                        2,
-                        public_key,
-                        private_key);
+  if (FAILURE(GenerateRandomBytes(private_key_bytes, 32)))
+  {
+    rb_raise(rb_eRuntimeError, "unable to generate private key bytes.");
+  }
 
-  return key_pair;
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+
+  private_key = PrivateKey_create(context, private_key_bytes);
+  public_key = PublicKey_create_from_private_key(context, private_key_bytes);
+  result = rb_funcall(
+    Secp256k1_KeyPair_class,
+    rb_intern("new"),
+    2,
+    public_key,
+    private_key
+  );
+
+  return result;
 }
 
 /**
@@ -867,28 +840,43 @@ static VALUE
 Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
 {
   Context *context;
-  PublicKey *public_key;
   unsigned char *public_key_data;
-  VALUE result;
 
   Check_Type(in_public_key_data, T_STRING);
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
+  return PublicKey_create_from_data(
+    context,
+    public_key_data,
+    RSTRING_LEN(in_public_key_data)
+  );
+}
 
-  result = PublicKey_alloc(Secp256k1_PublicKey_class);
-  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+/**
+ * Load a private key from binary data.
+ *
+ * @param in_private_key_data [String] 32 byte binary string of private key
+ *   data.
+ * @return [Secp256k1::PrivateKey] private key loaded from the given data.
+ * @raise [ArgumentError] if private key data is not 32 bytes or is invalid.
+ */
+static VALUE
+Context_private_key_from_data(VALUE self, VALUE in_private_key_data)
+{
+  Context *context;
+  unsigned char *private_key_data;
 
-  if (secp256k1_ec_pubkey_parse(context->ctx,
-                                &(public_key->pubkey),
-                                public_key_data,
-                                RSTRING_LEN(in_public_key_data)) != 1)
+  Check_Type(in_private_key_data, T_STRING);
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
+
+  if (RSTRING_LEN(in_private_key_data) != 32)
   {
-    rb_raise(rb_eRuntimeError, "invalid public key data");
+    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
   }
 
-  public_key->ctx = secp256k1_context_clone(context->ctx);
-  return result;
+  return PrivateKey_create(context, private_key_data);
 }
 
 /**
@@ -902,27 +890,29 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
 static VALUE
 Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 {
+  Context *context;
   VALUE public_key;
   VALUE private_key;
-  VALUE key_pair;
+  unsigned char *private_key_data;
 
-  private_key = rb_funcall(Secp256k1_PrivateKey_class,
-                           rb_intern("new"),
-                           2,
-                           self,
-                           in_private_key_data);
-  public_key = rb_funcall(Secp256k1_PublicKey_class,
-                          rb_intern("new"),
-                          2,
-                          self,
-                          private_key);
-  key_pair = rb_funcall(Secp256k1_KeyPair_class,
-                        rb_intern("new"),
-                        2,
-                        public_key,
-                        private_key);
+  if (RSTRING_LEN(in_private_key_data) != 32)
+  {
+    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
+  }
 
-  return key_pair;
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
+
+  private_key = PrivateKey_create(context, private_key_data);
+  public_key = PublicKey_create_from_private_key(context, private_key_data);
+
+  return rb_funcall(
+    Secp256k1_KeyPair_class,
+    rb_intern("new"),
+    2,
+    public_key,
+    private_key
+  );
 }
 
 /**
@@ -1043,7 +1033,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
  * @param in_pubkey [Secp256k1::PublicKey] public key to verify signature
  *   against.
  * @param in_data [String] text or binary data to verify signature against.
- * @return [Bool] True if the signature is valid, false otherwise.
+ * @return [Boolean] True if the signature is valid, false otherwise.
  */
 static VALUE
 Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_data)
@@ -1181,6 +1171,11 @@ Context_recoverable_signature_from_compact(
 // Secp256k1 module methods
 //
 
+/**
+ * Indicates whether or not the libsecp256k1 recovery module was built.
+ *
+ * @return [Boolean] True if libsecp256k1 was built with the recovery module.
+ */
 static VALUE
 Secp256k1_have_recovery(VALUE module)
 {
@@ -1235,6 +1230,10 @@ void Init_rbsecp256k1()
                    Context_public_key_from_data,
                    1);
   rb_define_method(Secp256k1_Context_class,
+                   "private_key_from_data",
+                   Context_private_key_from_data,
+                   1);
+  rb_define_method(Secp256k1_Context_class,
                    "sign",
                    Context_sign,
                    2);
@@ -1269,10 +1268,6 @@ void Init_rbsecp256k1()
                                                     rb_cData);
   rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);
   rb_define_method(Secp256k1_PublicKey_class,
-                   "initialize",
-                   PublicKey_initialize,
-                   2);
-  rb_define_method(Secp256k1_PublicKey_class,
                    "compressed",
                    PublicKey_compressed,
                    0);
@@ -1286,15 +1281,7 @@ void Init_rbsecp256k1()
     Secp256k1_module, "PrivateKey", rb_cData
   );
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
-  rb_define_singleton_method(Secp256k1_PrivateKey_class,
-                             "generate",
-                             PrivateKey_generate,
-                             1);
   rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
-  rb_define_method(Secp256k1_PrivateKey_class,
-                   "initialize",
-                   PrivateKey_initialize,
-                   2);
 
   // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
