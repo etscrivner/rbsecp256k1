@@ -17,7 +17,7 @@ endif
 
 # Enable EC Diffie-Hellman module
 ifeq ($(WITH_ECDH), 1)
-	LIBSECP256K1_FLAGS+= --enable-ecdh
+	LIBSECP256K1_FLAGS+= --enable-module-ecdh --enable-experimental
 endif
 
 all: test

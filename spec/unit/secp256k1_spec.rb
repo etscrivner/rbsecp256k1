@@ -5,6 +5,10 @@ RSpec.describe Secp256k1 do
   # environments where tests are being run with the recovery module installed.
   let(:with_recovery) { ENV.fetch('WITH_RECOVERY', '0') == '1' }
 
+  # Pull down the WITH_ECDH environment variable. This should be '1' in
+  # environments where tests are being run with the ECDH module installed.
+  let(:with_ecdh) { ENV.fetch('WITH_ECDH', '0') == '1' }
+
   describe '.have_recovery?' do
     it 'has the expected recovery module' do
       expect(Secp256k1.have_recovery?).to eq(with_recovery)
@@ -13,7 +17,7 @@ RSpec.describe Secp256k1 do
 
   describe '.have_ecdh?' do
     it 'has the expected ecdh module' do
-      expect(Secp256k1.have_ecdh?).to be false
+      expect(Secp256k1.have_ecdh?).to eq(with_ecdh)
     end
   end
 end

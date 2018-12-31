@@ -12,6 +12,7 @@ Classes and Modules
 |                            | [KeyPair](key_pair.md)                           |
 |                            | [PublicKey](public_key.md)                       |
 |                            | [PrivateKey](private_key.md)                     |
+|                            | [SharedSecret](shared_secret.md)                 |
 |                            | [Signature](signature.md)                        |
 |                            | [RecoverableSignature](recoverable_signature.md) |
 
@@ -28,6 +29,9 @@ efficient.
 compressed or uncompressed format.
 
 **[PrivateKey](private_key.md)** is a 64-byte Secp256k1 private key.
+
+**[SharedSecret](shared_secret.md)** A 32-byte shared secret computed from a
+public key (point) and private key (scalar).
 
 **[Signature](signature.md)** is an ECDSA signature of the SHA-256 message hash
 of a piece of data.

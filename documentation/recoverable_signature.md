@@ -3,6 +3,8 @@
 Secp256k1::RecoverableSignature
 ===============================
 
+**Requires:** libsecp256k1 was build with recovery module.
+
 Secp256k1::RecoverableSignature represents a recoverable ECDSA signature
 signing the 32-byte SHA-256 hash of some data.
 

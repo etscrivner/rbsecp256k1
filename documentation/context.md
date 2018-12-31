@@ -18,6 +18,14 @@ initialization.
 Instance Methods
 ----------------
 
+#### ecdh(point, scalar)
+
+**Requires:** libsecp256k1 was built with the experimental ECDH module.
+
+Takes a `point` ([PublicKey]) and a `scalar` ([PrivateKey]) and returns a new
+[SharedSecret] containing the 32-byte shared secret. Raises a `RuntimeError` if
+the `scalar` is invalid (zero or causes an overflow).
+
 #### generate_key_pair
 
 Generates and returns a new [KeyPair](key_pair.md) using a cryptographically
@@ -42,6 +50,8 @@ is expected to be a binary string.
 
 #### recoverable_signature_from_compact(compact_signature, recovery_id)
 
+**Requires:** libsecp256k1 was build with recovery module.
+
 Attempts to load a [RecoverableSignature](recoverable_signature.md) from the given `compact_signature`
 and `recovery_id`. Raises a RuntimeError if the signature data or recovery ID are invalid.
 
@@ -52,6 +62,8 @@ Signs the SHA-256 hash given by `hash32` using `private_key` and returns a new
 object and `data` can be either a binary string or text.
 
 ### sign_recoverable(private_key, hash32)
+
+**Requires:** libsecp256k1 was build with recovery module.
 
 Signs the data represented by the SHA-256 hash `hash32` using `private_key` and returns a
 new [RecoverableSignature](recoverable_signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md) and
