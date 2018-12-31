@@ -20,6 +20,11 @@
 #include <secp256k1_recovery.h>
 #endif // HAVE_SECP256K1_RECOVERY_H
 
+// Include EC Diffie-Hellman functionality
+#ifdef HAVE_SECP256K1_ECDH_H
+#include <secp256k1_ecdh.h>
+#endif // HAVE_SECP256K1_ECDH_H
+
 // High-level design:
 //
 // The Ruby wrapper is divided into the following hierarchical organization:
@@ -1350,9 +1355,10 @@ Context_recoverable_signature_from_compact(
 //
 
 /**
- * Indicates whether or not the libsecp256k1 recovery module was built.
+ * Indicates whether or not the libsecp256k1 recovery module is installed.
  *
- * @return [Boolean] True if libsecp256k1 was built with the recovery module.
+ * @return [Boolean] true if libsecp256k1 was built with the recovery module,
+ *   false otherwise.
  */
 static VALUE
 Secp256k1_have_recovery(VALUE module)
@@ -1362,6 +1368,22 @@ Secp256k1_have_recovery(VALUE module)
 #else // HAVE_SECP256K1_RECOVERY_H
   return Qfalse;
 #endif // HAVE_SECP256K1_RECOVERY_H
+}
+
+/**
+ * Indicates whether or not libsecp256k1 EC Diffie-Hellman module is installed.
+ *
+ * @return [Boolean] true if libsecp256k1 was build with the ECDH module, false
+ *   otherwise.
+ */
+static VALUE
+Secp256k1_have_ecdh(VALUE module)
+{
+#ifdef HAVE_SECP256K1_ECDH_H
+  return Qtrue;
+#else // HAVE_SECP256K1_ECDH_H
+  return Qfalse;
+#endif // HAVE_SECP256K1_ECDH_H
 }
 
 //
@@ -1383,6 +1405,12 @@ void Init_rbsecp256k1()
     Secp256k1_module,
     "have_recovery?",
     Secp256k1_have_recovery,
+    0
+  );
+  rb_define_singleton_method(
+    Secp256k1_module,
+    "have_ecdh?",
+    Secp256k1_have_ecdh,
     0
   );
 

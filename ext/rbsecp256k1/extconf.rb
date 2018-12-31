@@ -13,4 +13,7 @@ abort "missing libsecp256k1" unless results[1]
 # Check if we have the libsecp256k1 recoverable signature header.
 have_header('secp256k1_recovery.h')
 
+# Check if we have EC Diffie-Hellman functionality
+have_header('secp256k1_ecdh.h')
+
 create_makefile('rbsecp256k1')

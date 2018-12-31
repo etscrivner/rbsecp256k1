@@ -10,8 +10,14 @@ ifeq ($(OS),Darwin)
 	COMPILE_PREFIX=PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
 endif
 
+# Enable recovery module
 ifeq ($(WITH_RECOVERY), 1)
-	LIBSECP256K1_FLAGS=--enable-module-recovery
+	LIBSECP256K1_FLAGS+=--enable-module-recovery
+endif
+
+# Enable EC Diffie-Hellman module
+ifeq ($(WITH_ECDH), 1)
+	LIBSECP256K1_FLAGS+= --enable-ecdh
 endif
 
 all: test
