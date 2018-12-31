@@ -4,7 +4,7 @@ RSpec.describe Secp256k1::Signature do
   let(:context) { Secp256k1::Context.new }
   let(:message) { 'this is a test' }
   let(:key_pair) { context.generate_key_pair }
-  let(:signature) { context.sign(key_pair.private_key, message) }
+  let(:signature) { context.sign(key_pair.private_key, sha256(message)) }
 
   describe '#der_encoded' do
     it 'returns a valid DER encoded signature' do

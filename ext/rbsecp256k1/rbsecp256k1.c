@@ -11,7 +11,6 @@
 #include <ruby.h>
 
 #include <openssl/rand.h>
-#include <openssl/sha.h>
 
 #include <secp256k1.h>
 
@@ -266,18 +265,10 @@ GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
 }
 
 /**
- * Computes the ECDSA signature of the given data.
- *
- * This method first computes the ECDSA signature of the given data (can be
- * text or binary data) and outputs both the raw libsecp256k1 signature.
- *
- * ECDSA signing involves the following steps:
- *   1. Compute the 32-byte SHA-256 hash of the given data.
- *   2. Sign the 32-byte hash using the private key provided.
+ * Computes the ECDSA signature of the given 32-byte SHA-256 hash.
  *
  * \param in_context libsecp256k1 context
- * \param in_data Data to be signed
- * \param in_data_len Length of data to be signed
+ * \param in_hash32 32-byte SHA-256 hash
  * \param in_private_key Private key to be used for signing
  * \param out_signature Signature produced during the signing proccess
  * \return RESULT_SUCCESS if the hash and signature were computed successfully,
@@ -285,20 +276,14 @@ GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
  */
 static ResultT
 SignData(secp256k1_context *in_context,
-         unsigned char *in_data,
-         unsigned long in_data_len,
+         unsigned char *in_hash32,
          unsigned char *in_private_key,
          secp256k1_ecdsa_signature *out_signature)
 {
-  unsigned char hash[SHA256_DIGEST_LENGTH];
-
-  // Compute the SHA-256 hash of data
-  SHA256(in_data, in_data_len, hash);
-
   // Sign the hash of the data
   if (secp256k1_ecdsa_sign(in_context,
                            out_signature,
-                           hash,
+                           in_hash32,
                            in_private_key,
                            NULL,
                            NULL) == 1)
@@ -319,8 +304,7 @@ SignData(secp256k1_context *in_context,
  *   2. Sign the 32-byte hash using the private key provided.
  *
  * \param in_context libsecp256k1 context
- * \param in_data Data to be signed
- * \param in_data_len Length of data to be signed
+ * \param in_hash32 32-byte SHA-256 hash to sign
  * \param in_private_key Private key to be used for signing
  * \param out_signature Recoverable signature computed
  * \return RESULT_SUCCESS if the hash and signature were computed successfully,
@@ -328,19 +312,13 @@ SignData(secp256k1_context *in_context,
  */
 static ResultT
 RecoverableSignData(secp256k1_context *in_context,
-                    unsigned char *in_data,
-                    unsigned long in_data_len,
+                    unsigned char *in_hash32,
                     unsigned char *in_private_key,
                     secp256k1_ecdsa_recoverable_signature *out_signature)
 {
-  unsigned char hash[SHA256_DIGEST_LENGTH];
-
-  // Compute the SHA-256 hash of data
-  SHA256(in_data, in_data_len, hash);
-
   if (secp256k1_ecdsa_sign_recoverable(in_context,
                                        out_signature,
-                                       hash,
+                                       in_hash32,
                                        in_private_key,
                                        NULL,
                                        NULL) == 1)
@@ -674,11 +652,11 @@ Signature_der_encoded(VALUE self)
   // TODO: Cache value after first computation
   Signature *signature;
   unsigned long der_signature_len;
-  unsigned char der_signature[512];
+  unsigned char der_signature[72];
 
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
-  der_signature_len = 512;
+  der_signature_len = 72;
   if (secp256k1_ecdsa_signature_serialize_der(signature->ctx,
                                               der_signature,
                                               &der_signature_len,
@@ -893,29 +871,31 @@ RecoverableSignature_to_signature(VALUE self)
 /**
  * Attempts to recover the public key associated with this signature.
  *
- * @param in_data [String] data that this signature signed.
+ * @param in_hash32 [String] 32-byte SHA-256 hash of data.
  * @return [Secp256k1::PublicKey] recovered public key.
  * @raise [RuntimeError] if the public key could not be recovered.
  */
 static VALUE
-RecoverableSignature_recover_public_key(VALUE self, VALUE in_data)
+RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
 {
   RecoverableSignature *recoverable_signature;
   PublicKey *public_key;
   VALUE result;
-  unsigned char *in_data_ptr;
-  unsigned char hash[32];
+  unsigned char *hash32;
 
-  Check_Type(in_data, T_STRING);
+  Check_Type(in_hash32, T_STRING);
+  if (RSTRING_LEN(in_hash32) != 32)
+  {
+    rb_raise(rb_eArgError, "in_hash32 is not 32 bytes in length");
+  }
+
   TypedData_Get_Struct(
     self,
     RecoverableSignature,
     &RecoverableSignature_DataType,
     recoverable_signature
   );
-  in_data_ptr = (unsigned char*)StringValuePtr(in_data);
-
-  SHA256(in_data_ptr, RSTRING_LEN(in_data), hash);
+  hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
   TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
@@ -923,7 +903,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_data)
   if (secp256k1_ecdsa_recover(recoverable_signature->ctx,
                               &(public_key->pubkey),
                               &(recoverable_signature->sig),
-                              hash) == 1)
+                              hash32) == 1)
   {
     public_key->ctx = secp256k1_context_clone(recoverable_signature->ctx);
     return result;
@@ -1217,32 +1197,37 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
  *
  * @param in_private_key [Secp256k1::PrivateKey] private key to use for
  *   signing.
- * @param in_data [String] binary or text data to be signed.
+ * @param in_hash32 [String] 32-byte binary string with SHA-256 hash of data.
  * @return [Secp256k1::Signature] signature resulting from signing data.
  * @raise [RuntimeError] if signature computation fails.
+ * @raise [ArgumentError] if hash is not 32-bytes in length.
  */
 static VALUE
-Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
+Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
 {
-  unsigned char *data_ptr;
+  unsigned char *hash32;
   PrivateKey *private_key;
   Context *context;
   Signature *signature;
   VALUE signature_result;
 
-  Check_Type(in_data, T_STRING);
+  Check_Type(in_hash32, T_STRING);
+
+  if (RSTRING_LEN(in_hash32) != 32)
+  {
+    rb_raise(rb_eArgError, "in_hash32 is not 32 bytes in length");
+  }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   TypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
-  data_ptr = (unsigned char*)StringValuePtr(in_data);
+  hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   signature_result = Signature_alloc(Secp256k1_Signature_class);
   TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
  
   // Attempt to sign the hash of the given data
   if (SUCCESS(SignData(context->ctx,
-                       data_ptr,
-                       RSTRING_LEN(in_data),
+                       hash32,
                        private_key->data,
                        &(signature->sig))))
   {
@@ -1259,30 +1244,35 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_data)
  * @param in_signature [Secp256k1::Signature] signature to be verified.
  * @param in_pubkey [Secp256k1::PublicKey] public key to verify signature
  *   against.
- * @param in_data [String] text or binary data to verify signature against.
+ * @param in_hash32 [String] 32-byte binary string containing SHA-256 hash of
+ *   data.
  * @return [Boolean] True if the signature is valid, false otherwise.
+ * @raise [ArgumentError] if hash is not 32-bytes in length.
  */
 static VALUE
-Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_data)
+Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_hash32)
 {
   Context *context;
   PublicKey *public_key;
   Signature *signature;
-  unsigned char *data_ptr;
-  unsigned char hash[SHA256_DIGEST_LENGTH];
+  unsigned char *hash32;
 
-  Check_Type(in_data, T_STRING);
+  Check_Type(in_hash32, T_STRING);
+
+  if (RSTRING_LEN(in_hash32) != 32)
+  {
+    rb_raise(rb_eArgError, "in_hash32 is not 32-bytes in length");
+  }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   TypedData_Get_Struct(in_pubkey, PublicKey, &PublicKey_DataType, public_key);
   TypedData_Get_Struct(in_signature, Signature, &Signature_DataType, signature);
 
-  data_ptr = (unsigned char*)StringValuePtr(in_data);
-  SHA256(data_ptr, RSTRING_LEN(in_data), hash);
+  hash32 = (unsigned char*)StringValuePtr(in_hash32);
   
   if (secp256k1_ecdsa_verify(context->ctx,
                              &(signature->sig),
-                             hash,
+                             hash32,
                              &(public_key->pubkey)) == 1)
   {
     return Qtrue;
@@ -1298,25 +1288,31 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_data)
  * Computes the recoverable ECDSA signature of data signed with private key.
  *
  * @param in_private_key [Secp256k1::PrivateKey] private key to sign with.
- * @param in_data [String] data to be signed.
+ * @param in_hash32 [String] 32-byte binary string with SHA-256 hash of data.
  * @return [Secp256k1::RecoverableSignature] recoverable signature produced by
- *   signing the SHA-256 hash of `in_data` with `in_private_key`.
+ *   signing the SHA-256 hash `in_hash32` with `in_private_key`.
+ * @raise [ArgumentError] if the hash is not 32 bytes
  */
 static VALUE
-Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_data)
+Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
 {
   Context *context;
   PrivateKey *private_key;
   RecoverableSignature *recoverable_signature;
-  unsigned char *in_data_ptr;
+  unsigned char *hash32;
   VALUE result;
 
-  Check_Type(in_data, T_STRING);
+  Check_Type(in_hash32, T_STRING);
+  if (RSTRING_LEN(in_hash32) != 32)
+  {
+    rb_raise(rb_eArgError, "in_hash32 is not 32 bytes in length");
+  }
+
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   TypedData_Get_Struct(
     in_private_key, PrivateKey, &PrivateKey_DataType, private_key
   );
-  in_data_ptr = (unsigned char*)StringValuePtr(in_data);
+  hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
   TypedData_Get_Struct(
@@ -1327,8 +1323,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_data)
   );
 
   if (SUCCESS(RecoverableSignData(context->ctx,
-                                  in_data_ptr,
-                                  RSTRING_LEN(in_data),
+                                  hash32,
                                   private_key->data,
                                   &(recoverable_signature->sig))))
   {

@@ -57,16 +57,19 @@ You should now be able to use the gem as expected:
 
 ```ruby
 require 'rbsecp256k1'
+require 'digest'
+
 ctx = Secp256k1::Context.new
 key_pair = ctx.generate_key_pair
 
 puts Secp256k1::Util.bin_to_hex(key_pair.public_key.uncompressed)
 puts Secp256k1::Util.bin_to_hex(key_pair.public_key.compressed)
 
-sig = ctx.sign(key_pair.private_key, "test message")
+message_hash = Digest::SHA256.digest('test message')
+sig = ctx.sign(key_pair.private_key, message_hash)
 puts Secp256k1::Util.bin_to_hex(sig.der_encoded)
 
-ctx.verify(sig, key_pair.public_key, "test message")
+ctx.verify(sig, key_pair.public_key, message_hash)
 # => true
 ```
 
@@ -74,6 +77,8 @@ Similarly you can start with existing key and signature data:
 
 ```ruby
 require 'rbsecp256k1'
+require 'digest'
+
 ctx = Secp256k1::Context.new
 public_key = ctx.public_key_from_data("\x02/dUQ|\x82\x11r\xFA\xF97\x1F\x95\xD1:\xBC\xE2v\xB2A]\xCB~:\xD7'\e\xBF\xEDjC\x9B")
 sig = ctx.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\x02 \t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f")
@@ -81,7 +86,7 @@ sig = ctx.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE
 puts Secp256k1::Util.bin_to_hex(public_key.uncompressed)
 puts Secp256k1::Util.bin_to_hex(public_key.compressed)
 
-ctx.verify(sig, public_key, "test message")
+ctx.verify(sig, public_key, Digest::SHA256.digest("test message"))
 # => true
 ```
 

@@ -1,5 +1,8 @@
 require 'rbsecp256k1'
 
+# Helpers
+require_relative './helpers/ecdsa_helpers'
+
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
@@ -60,4 +63,7 @@ RSpec.configure do |config|
   # test failures related to randomization by passing the same `--seed` value
   # as the one that triggered the failure.
   Kernel.srand config.seed
+
+  # Include helpers
+  config.include ECDSAHelpers
 end
