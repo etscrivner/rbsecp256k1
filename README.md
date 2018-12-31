@@ -8,6 +8,12 @@ Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/s
 
 ## Installation
 
+The simplest installation:
+
+```
+gem install rbsecp256k1
+```
+
 ### Requirements
 
 You'll need to have compiled and installed [libsecp256k1](https://github.com/bitcoin-core/secp256k1) from source. You'll
