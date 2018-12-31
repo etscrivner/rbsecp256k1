@@ -88,10 +88,12 @@ Secp256k1::Util.bin_to_hex(key_pair.public_key.uncompressed)
 This example shows how to sign a message using your private key:
 
 ```ruby
+require 'digest'
+
 context = Secp256k1::Context.new
 key_pair = context.generate_key_pair
 
-signature = context.sign(key_pair.private_key, "test message")
+signature = context.sign(key_pair.private_key, Digest::SHA256.digest("test message"))
 # => #<Secp256k1::Signature:0x0000559b0bc79358>
 ```
 
@@ -104,10 +106,12 @@ This example shows you how to get the DER encoded and compact encoded
 representations of a signature:
 
 ```ruby
+require 'digest'
+
 context = Secp256k1::Context.new
 key_pair = context.generate_key_pair
 
-signature = context.sign(key_pair.private_key, "test message")
+signature = context.sign(key_pair.private_key, Digest::SHA256.digest("test message"))
 
 # 1. Get the compact binary representation
 signature.compact
@@ -131,17 +135,20 @@ Secp256k1::Util.bin_to_hex(signature.der_encoded)
 This example shows how to verify a signature using a public key:
 
 ```ruby
+require 'digest'
+
 context = Secp256k1::Context.new
 key_pair = context.generate_key_pair
+hash = Digest::SHA256.digest("test message")
 
-signature = context.sign(key_pair.private_key, "test message")
+signature = context.sign(key_pair.private_key, hash)
 
 # 1. Verify signature against matching message
-context.verify(signature, key_pair.public_key, "test message")
+context.verify(signature, key_pair.public_key, hash)
 # => true
 
 # 2. Verify signature against different message
-context.verify(signature, key_pair.public_key, "other message")
+context.verify(signature, key_pair.public_key, hash)
 # => false
 ```
 

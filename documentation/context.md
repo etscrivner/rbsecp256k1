@@ -45,16 +45,15 @@ is expected to be a binary string.
 Attempts to load a [RecoverableSignature](recoverable_signature.md) from the given `compact_signature`
 and `recovery_id`. Raises a RuntimeError if the signature data or recovery ID are invalid.
 
-#### sign(private_key, data)
+#### sign(private_key, hash32)
 
-Signs the SHA-256 hash of the given `data` using `private_key` and returns a
-new [Signature](signature.md). The `private_key` is expected to be a
-[PrivateKey](private_key.md) object and `data` can be either a binary string or
-text.
+Signs the SHA-256 hash given by `hash32` using `private_key` and returns a new
+[Signature](signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md)
+object and `data` can be either a binary string or text.
 
-### sign_recoverable(private_key, data)
+### sign_recoverable(private_key, hash32)
 
-Signs the SHA-256 hash of the given `data` using `private_key` and returns a
+Signs the data represented by the SHA-256 hash `hash32` using `private_key` and returns a
 new [RecoverableSignature](recoverable_signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md) and
 `data` can be either a binary string or text.
 
@@ -70,9 +69,9 @@ Parses `der_encoded_signature` and returns a new [Signature](signature.md) objec
 to its data. The `der_encoded_signature` is expected to be a binary string.
 Raises a `RuntimeError` if the signature data is invalid.
 
-#### verify(signature, public_key, data)
+#### verify(signature, public_key, hash32)
 
 Verifies the given `signature` (type: [Signature](signature.md)) was signed by
-the private key corresponding to `public_key` (type: [PublicKey](public_key.md)) and signed `data`. Returns `true`
+the private key corresponding to `public_key` (type: [PublicKey](public_key.md)) and signed `hash32`. Returns `true`
 if `signature` is valid or `false` otherwise. Note that `data` can be either a
 text or binary string.

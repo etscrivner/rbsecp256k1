@@ -102,27 +102,33 @@ RSpec.describe Secp256k1::Context do
     let(:binary_data) { "yuyY\xC8\v\x9E\xBEu\xB9\x02\xEA\xA5\x82V\xAC\xAA9\xA0\xA4U\"z\x99,J\x90\xADk8\xB2\xE1" }
 
     it 'can sign text data' do
-      signature = subject.sign(key_pair.private_key, text_message)
+      signature = subject.sign(key_pair.private_key, sha256(text_message))
 
       expect(signature).to be_a(Secp256k1::Signature)
     end
 
     it 'can sign binary data' do
-      signature = subject.sign(key_pair.private_key, binary_data)
+      signature = subject.sign(key_pair.private_key, sha256(binary_data))
 
       expect(signature).to be_a(Secp256k1::Signature)
     end
 
     it 'raises an error if private key not given' do
       expect do
-        subject.sign(subject, text_message)
+        subject.sign(subject, sha256(text_message))
       end.to raise_error(TypeError)
+    end
+
+    it 'raises an error if signature is not 32 bytes' do
+      expect do
+        subject.sign(key_pair.private_key, text_message)
+      end.to raise_error(ArgumentError)
     end
   end
 
   describe '#signature_from_compact' do
     it 'can load a compact signature' do
-      signature = subject.sign(key_pair.private_key, message)
+      signature = subject.sign(key_pair.private_key, sha256(message))
       result = subject.signature_from_compact(signature.compact)
 
       expect(result).to be_a(Secp256k1::Signature)
@@ -138,7 +144,7 @@ RSpec.describe Secp256k1::Context do
 
   describe '#signature_from_der_encoded' do
     it 'can load a der encoded signature' do
-      signature = subject.sign(key_pair.private_key, message)
+      signature = subject.sign(key_pair.private_key, sha256(message))
       result = subject.signature_from_der_encoded(signature.der_encoded)
 
       expect(result).to be_a(Secp256k1::Signature)
@@ -154,25 +160,34 @@ RSpec.describe Secp256k1::Context do
 
   describe '#verify' do
     it 'verifies signatures with matching public key and data' do
-      signature = subject.sign(key_pair.private_key, message)
+      signature = subject.sign(key_pair.private_key, sha256(message))
 
-      expect(subject.verify(signature, key_pair.public_key, message)).to be true
+      expect(subject.verify(signature, key_pair.public_key, sha256(message))).to be true
     end
 
     it 'is false when public key does not match' do
-      signature = subject.sign(key_pair.private_key, message)
+      signature = subject.sign(key_pair.private_key, sha256(message))
       bad_key_pair = subject.generate_key_pair
 
-      expect(subject.verify(signature, bad_key_pair.public_key, message))
+      expect(subject.verify(signature, bad_key_pair.public_key, sha256(message)))
         .to be false
     end
 
     it 'is false when data does not match' do
-      signature = subject.sign(key_pair.private_key, message)
+      signature = subject.sign(key_pair.private_key, sha256(message))
       bad_message = 'bad message'
 
-      expect(subject.verify(signature, key_pair.public_key, bad_message))
+      expect(subject.verify(signature, key_pair.public_key, sha256(bad_message)))
         .to be false
+    end
+
+    it 'raises an error if hash is not 32 bytes' do
+      signature = subject.sign(key_pair.private_key, sha256(message))
+      bad_key_pair = subject.generate_key_pair
+
+      expect do
+        subject.verify(signature, bad_key_pair.public_key, message)
+      end.to raise_error(ArgumentError)
     end
   end
 
@@ -182,27 +197,33 @@ RSpec.describe Secp256k1::Context do
       let(:binary_data) { "yuyY\xC8\v\x9E\xBEu\xB9\x02\xEA\xA5\x82V\xAC\xAA9\xA0\xA4U\"z\x99,J\x90\xADk8\xB2\xE1" }
 
       it 'can sign text data' do
-        signature = subject.sign_recoverable(key_pair.private_key, text_message)
+        signature = subject.sign_recoverable(key_pair.private_key, sha256(text_message))
 
         expect(signature).to be_a(Secp256k1::RecoverableSignature)
       end
 
       it 'can sign binary data' do
-        signature = subject.sign_recoverable(key_pair.private_key, binary_data)
+        signature = subject.sign_recoverable(key_pair.private_key, sha256(binary_data))
 
         expect(signature).to be_a(Secp256k1::RecoverableSignature)
       end
 
       it 'raises an error if private key not given' do
         expect do
-          subject.sign_recoverable(subject, text_message)
+          subject.sign_recoverable(subject, sha256(text_message))
         end.to raise_error(TypeError)
+      end
+
+      it 'raises an error if hash is the wrong length' do
+        expect do
+          subject.sign_recoverable(subject, text_message)
+        end.to raise_error(ArgumentError)
       end
     end
 
     describe '#recoverable_signature_from_compact' do
       it 'recovers signature from data' do
-        signature = subject.sign_recoverable(key_pair.private_key, 'test')
+        signature = subject.sign_recoverable(key_pair.private_key, sha256('test'))
         compact, recovery_id = signature.compact
 
         recovered_signature = subject.recoverable_signature_from_compact(

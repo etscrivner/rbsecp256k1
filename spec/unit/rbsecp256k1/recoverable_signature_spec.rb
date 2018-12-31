@@ -4,7 +4,7 @@ if Secp256k1.have_recovery?
   RSpec.describe Secp256k1::RecoverableSignature do
     let(:context) { Secp256k1::Context.new }
     let(:key_pair) { context.generate_key_pair }
-    let(:text_message) { 'more test stuff' }
+    let(:text_message) { sha256('more test stuff') }
 
     describe '#compact' do
       it 'returns the compact signature and recovery id' do
@@ -51,7 +51,7 @@ if Secp256k1.have_recovery?
         )
 
         public_key = recoverable_signature.recover_public_key(
-          text_message + 'bad data'
+          sha256('bad data')
         )
 
         expect(public_key).to be_a(Secp256k1::PublicKey)
