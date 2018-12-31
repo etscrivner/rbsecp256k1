@@ -19,16 +19,7 @@ and macOS sections below.
 To build libsecp256k1 from source you can do the following:
 
 ```
-make deps
-```
-
-Or if you want to build it yourself from the repository, you should do the following:
-
-```
-./autogen.sh
-./configure --enable-module-recovery
-make
-sudo make install
+make deps WITH_RECOVERY=1 WITH_ECDH=1
 ```
 
 ### Linux
@@ -109,6 +100,14 @@ install it you can run:
 make deps
 ```
 
+### Uninstalling libsecp256k1
+
+libsecp256k1 can also be uninstall:
+
+```
+make uninstall-deps
+```
+
 ### Setup
 
 Development is largely facilitated by a makefile. After download you should run
@@ -152,6 +151,22 @@ You can similarly uninstall the local gem by running the following:
 
 ```
 make uninstall
+```
+
+### Cleaning Up
+
+To clean up and do a fresh build:
+
+```
+make clean
+```
+
+### Running YARD Documentation Server
+
+To run the [YARD](https://yardoc.org/) documentation server:
+
+```
+make docserver
 ```
 
 ### Linux

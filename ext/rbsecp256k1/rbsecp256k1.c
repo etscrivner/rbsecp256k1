@@ -33,15 +33,17 @@
 // |--  KeyPair
 // |--  PublicKey
 // |--  PrivateKey
-// |--  Signature
 // |--  RecoverableSignature
+// |--  SharedSecret
+// |--  Signature
 //
 // The Context class contains most of the methods that invoke libsecp256k1.
-// The KayPair, PublicKey, PrivateKey, and Signature objects act as data
-// objects and are passed to various methods. Contexts are thread safe and can
-// be used across applications. Context initialization is expensive so it is
-// recommended that a single context be initialized and used throughout an
-// application when possible.
+// The KayPair, PublicKey, PrivateKey, RecoverableSignature, SharedSecret, and
+// Signature objects act as data objects and are passed to various
+// methods. Contexts are thread safe and can be used across
+// applications. Context initialization is expensive so it is recommended that
+// a single context be initialized and used throughout an application when
+// possible.
 
 //
 // The section below contains purely internal methods used exclusively by the
@@ -68,6 +70,10 @@ static VALUE Secp256k1_Signature_class;
 #ifdef HAVE_SECP256K1_RECOVERY_H
 static VALUE Secp256k1_RecoverableSignature_class;
 #endif // HAVE_SECP256K1_RECOVERY_H
+
+#ifdef HAVE_SECP256K1_ECDH_H
+static VALUE Secp256k1_SharedSecret_class;
+#endif // HAVE_SECP256K1_ECDH_H
 
 // Forward definitions for all structures
 typedef struct Context_dummy {
@@ -100,6 +106,12 @@ typedef struct RecoverableSignature_dummy {
   secp256k1_context *ctx;
 } RecoverableSignature;
 #endif // HAVE_SECP256K1_RECOVERY_H
+
+#ifdef HAVE_SECP256K1_ECDH_H
+typedef struct SharedSecret_dummy {
+  unsigned char data[32]; // Shared secret data
+} SharedSecret;
+#endif // HAVE_SECP256K1_ECDH_H
 
 //
 // Typed data definitions
@@ -216,6 +228,25 @@ static const rb_data_type_t RecoverableSignature_DataType = {
   RUBY_TYPED_FREE_IMMEDIATELY
 };
 #endif // HAVE_SECP256K1_RECOVERY_H
+
+// SharedSecret
+#ifdef HAVE_SECP256K1_ECDH_H
+static void
+SharedSecret_free(void *in_shared_secret)
+{
+  SharedSecret *shared_secret;
+
+  shared_secret = (SharedSecret*)in_shared_secret;
+  xfree(shared_secret);
+}
+
+static const rb_data_type_t SharedSecret_DataType = {
+  "SharedSecret",
+  { 0, SharedSecret_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+#endif // HAVE_SECP256K1_ECDH_H
 
 /**
  * Macro: SUCCESS
@@ -951,6 +982,29 @@ RecoverableSignature_equals(VALUE self, VALUE other)
 #endif // HAVE_SECP256K1_RECOVERY_H
 
 //
+// Secp256k1::SharedSecret class interface
+//
+
+#ifdef HAVE_SECP256K1_ECDH_H
+
+static VALUE
+SharedSecret_alloc(VALUE klass)
+{
+  VALUE new_instance;
+  SharedSecret *shared_secret;
+
+  shared_secret = ALLOC(SharedSecret);
+  MEMZERO(shared_secret, SharedSecret, 1);
+  new_instance = TypedData_Wrap_Struct(
+  klass, &SharedSecret_DataType, shared_secret
+  );
+
+  return new_instance;
+}
+
+#endif // HAVE_SECP256K1_ECDH_H
+
+//
 // Secp256k1::Context class interface
 //
 
@@ -1389,6 +1443,54 @@ Context_recoverable_signature_from_compact(
 
 #endif // HAVE_SECP256K1_RECOVERY_H
 
+// Context EC Diffie-Hellman methods
+#ifdef HAVE_SECP256K1_ECDH_H
+
+/**
+ * Compute EC Diffie-Hellman secret in constant time.
+ *
+ * Creates a new shared secret from public_key and private_key.
+ *
+ * @param point [Secp256k1::PublicKey] public-key representing ECDH point.
+ * @param scalar [Secp256k1::PrivateKey] private-key representing ECDH scalar.
+ * @return [Secp256k1::SharedSecret] shared secret
+ * @raise [RuntimeError] If scalar was invalid (zero or caused overflow).
+ */
+static VALUE
+Context_ecdh(VALUE self, VALUE point, VALUE scalar)
+{
+  Context *context;
+  PublicKey *public_key;
+  PrivateKey *private_key;
+  SharedSecret *shared_secret;
+  VALUE result;
+
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  TypedData_Get_Struct(point, PublicKey, &PublicKey_DataType, public_key);
+  TypedData_Get_Struct(scalar, PrivateKey, &PrivateKey_DataType, private_key);
+
+  result = SharedSecret_alloc(Secp256k1_SharedSecret_class);
+  TypedData_Get_Struct(
+    result, SharedSecret, &SharedSecret_DataType, shared_secret
+  );
+
+  if (secp256k1_ecdh(context->ctx,
+                     shared_secret->data,
+                     &(public_key->pubkey),
+                     (unsigned char*)private_key->data,
+                     NULL,
+                     NULL) != 1)
+  {
+    rb_raise(rb_eRuntimeError, "invalid scalar provided to ecdh");
+  }
+
+  rb_iv_set(result, "@data", rb_str_new((char*)shared_secret->data, 32));
+
+  return result;
+}
+
+#endif // HAVE_SECP256K1_ECDH_H
+
 //
 // Secp256k1 module methods
 //
@@ -1603,4 +1705,22 @@ void Init_rbsecp256k1()
     2
   );
 #endif // HAVE_SECP256K1_RECOVERY_H
+
+#ifdef HAVE_SECP256K1_ECDH_H
+  Secp256k1_SharedSecret_class = rb_define_class_under(
+    Secp256k1_module,
+    "SharedSecret",
+    rb_cData
+  );
+  rb_define_alloc_func(Secp256k1_SharedSecret_class, SharedSecret_alloc);
+  rb_define_attr(Secp256k1_SharedSecret_class, "data", 1, 0);
+
+  // Context EC Diffie-Hellman methods
+  rb_define_method(
+    Secp256k1_Context_class,
+    "ecdh",
+    Context_ecdh,
+    2
+  );
+#endif // HAVE_SECP256K1_ECDH_H
 }

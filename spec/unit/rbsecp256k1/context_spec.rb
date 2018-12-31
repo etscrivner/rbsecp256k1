@@ -241,4 +241,16 @@ RSpec.describe Secp256k1::Context do
       end
     end
   end
+
+  if Secp256k1.have_ecdh?
+    describe '#ecdh' do
+      it 'produces a shared secret from keys' do
+        shared_secret = subject.ecdh(key_pair.public_key, key_pair.private_key)
+
+        expect(shared_secret).to be_a(Secp256k1::SharedSecret)
+        expect(shared_secret.data).to be_a(String)
+        expect(shared_secret.data.length).to eq(32)
+      end
+    end
+  end
 end
