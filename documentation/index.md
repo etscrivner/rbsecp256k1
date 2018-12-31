@@ -97,9 +97,6 @@ signature = context.sign(key_pair.private_key, Digest::SHA256.digest("test messa
 # => #<Secp256k1::Signature:0x0000559b0bc79358>
 ```
 
-Note that signed data can be an ASCII or UTF-8 string or any arbitrary array of
-bytes.
-
 ### 4. Getting DER and Compact signature encodings
 
 This example shows you how to get the DER encoded and compact encoded
@@ -193,4 +190,108 @@ signature = context.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFB
 # 2. From compact signature
 signature = context.signature_from_compact("<\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f\x00")
 # => #<Secp256k1::Signature:0x0000559b0bdcaa68>
+```
+
+Recoverable Signature Examples
+------------------------------
+
+### Compiling libsecp256k1 with recovery module
+
+To compile the libsecp256k1 library with the recovery module you need to pass
+the appropriate flags to libsecp256k1:
+
+```
+./configure --enable-module-recovery
+```
+
+### 1. Checking for recovery module
+
+To check if you have compiled the recovery module into your local libsecp256k1
+run the following:
+
+```
+Secp256k1.have_recovery?
+# => true
+```
+
+### 2. Sign data producing recoverable signature
+
+You can sign data producing a recoverable signature as follows:
+
+```
+require 'digest'
+
+hash = Digest::SHA256.digest('test message')
+context = Secp256k1::Context.new
+key_pair = context.generate_key_pair
+
+signature = context.sign_recoverable(key_pair.private_key, hash)
+# => #<Secp256k1::RecoverableSignature:0x000055f2ea76e548>
+```
+
+### 3. Serialize recoverable signature as compact representation
+
+You can produce the compact binary serialization of a recoverable signature:
+
+```
+require 'digest'
+
+hash = Digest::SHA256.digest('test message')
+context = Secp256k1::Context.new
+key_pair = context.generate_key_pair
+
+signature = context.sign_recoverable(key_pair.private_key, hash)
+compact_data, recovery_id = signature.compact
+# => ["D,\x9C\xA6%I\x14-\xCA\xC0\x11\x0F\xEB\x1E\xB0\xB6\\-\xE2\b\x98\xFB\xEA\xD5\x9BZ\xE6\xDF#\xC1\x1A\xEEL\xF02\xB1\xE9{\r\xEBhh<\\\xCF\xB6\x98\xEA\x8F\xF65\xF2\xBF\x84\xD8\xE5x\xF0\xA5)\xA2Wb\x9D", 1]
+```
+
+### 4. Recoverable signature from compact representation
+
+You can load a recoverable signature give its compact representation and
+recovery ID:
+
+```
+context = Secp256k1::Context.new
+
+compact_data = "D,\x9C\xA6%I\x14-\xCA\xC0\x11\x0F\xEB\x1E\xB0\xB6\\-\xE2\b\x98\xFB\xEA\xD5\x9BZ\xE6\xDF#\xC1\x1A\xEEL\xF02\xB1\xE9{\r\xEBhh<\\\xCF\xB6\x98\xEA\x8F\xF65\xF2\xBF\x84\xD8\xE5x\xF0\xA5)\xA2Wb\x9D"
+recovery_id = 1
+
+signature = context.recoverable_signature_from_compact(compact_data, recovery_id)
+# => #<Secp256k1::RecoverableSignature:0x000055f2ea7615c8>
+```
+
+### 5. Convert recoverable signature to non-recoverable signature
+
+You can convert a recoverable signature to a non-recoverable signature suitable
+for use by all methods that take a [Signature](signature.md) object:
+
+```
+require 'digest'
+
+hash = Digest::SHA256.digest('test message')
+context = Secp256k1::Context.new
+key_pair = context.generate_key_pair
+
+recoverable_signature = context.sign_recoverable(key_pair.private_key, hash)
+signature = recoverable_signature.to_signature
+# => #<Secp256k1::Signature:0x000055f2ea8ca4f0>
+```
+
+### 6. Recover public key from recoverable signature
+
+You can recover the [PublicKey](public_key.md) associated with a recoverable signature:
+
+```
+require 'digest'
+
+hash = Digest::SHA256.digest('test message')
+context = Secp256k1::Context.new
+key_pair = context.generate_key_pair
+
+recoverable_signature = context.sign_recoverable(key_pair.private_key, hash)
+public_key = recoverable_signature.recover_public_key(hash)
+# => #<Secp256k1::PublicKey:0x000055f2ea756678>
+
+public_key == key_pair.public_key
+# => true
 ```
