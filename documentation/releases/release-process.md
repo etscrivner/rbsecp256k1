@@ -34,7 +34,7 @@ rbsecp256k1 version ${VERSION} is now available.
 
 For release notes see:
 
-https://github.com/etscrivner/rbsecp256k1/blob/master/documents/releases/release-notes/release-notes-${VERSION}.md
+https://github.com/etscrivner/rbsecp256k1/blob/master/documentation/releases/release-notes/release-notes-${VERSION}.md
 ```
 
 ### Pushing Gem
