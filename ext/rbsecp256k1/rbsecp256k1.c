@@ -1156,6 +1156,8 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   VALUE private_key;
   unsigned char *private_key_data;
 
+  Check_Type(in_private_key_data, T_STRING);
+
   if (RSTRING_LEN(in_private_key_data) != 32)
   {
     rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
@@ -1400,10 +1402,11 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
  *
  * @param in_compact_sig [String] binary string containing compact signature
  *   data.
- * @param in_recovery_id [Integer] recovery ID.
+ * @param in_recovery_id [Integer] recovery ID (range [0, 3])
  * @return [Secp256k1::RecoverableSignature] signature parsed from data.
  * @raise [RuntimeError] if signature data or recovery ID is invalid.
- * @raise [ArgumentError] if compact signature is not 64 bytes.
+ * @raise [ArgumentError] if compact signature is not 64 bytes or recovery ID
+ *   is not in range [0, 3].
  */
 static VALUE
 Context_recoverable_signature_from_compact(
@@ -1425,6 +1428,11 @@ Context_recoverable_signature_from_compact(
   if (RSTRING_LEN(in_compact_sig) != 64)
   {
     rb_raise(rb_eArgError, "compact signature is not 64 bytes");
+  }
+
+  if (recovery_id < 0 || recovery_id > 3)
+  {
+    rb_raise(rb_eArgError, "invalid recovery ID, must be in range [0, 3]");
   }
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);

@@ -47,6 +47,12 @@ RSpec.describe Secp256k1::Context do
         subject.key_pair_from_private_key('abcdefghijklmnopqrstuvwxyzabcd')
       end.to raise_error(ArgumentError, 'private key data must be 32 bytes in length')
     end
+
+    it 'raises an error if private key data is not string' do
+      expect do
+        subject.key_pair_from_private_key(1234)
+      end.to raise_error(TypeError)
+    end
   end
 
   describe '#private_key_from_data' do
@@ -62,6 +68,12 @@ RSpec.describe Secp256k1::Context do
       expect do
         subject.private_key_from_data('test')
       end.to raise_error(ArgumentError, 'private key data must be 32 bytes in length')
+    end
+
+    it 'raises an error if private key data is not string' do
+      expect do
+        subject.private_key_from_data(1234)
+      end.to raise_error(TypeError)
     end
   end
 
@@ -85,6 +97,12 @@ RSpec.describe Secp256k1::Context do
         subject.public_key_from_data(Random.new.bytes(64))
       end.to raise_error(RuntimeError, 'invalid public key data')
     end
+
+    it 'raises an error if public key data is not string' do
+      expect do
+        subject.public_key_from_data(1234)
+      end.to raise_error(TypeError)
+    end
   end
 
   describe '#private_key_from_data' do
@@ -94,6 +112,12 @@ RSpec.describe Secp256k1::Context do
 
       expect(private_key).to be_a(Secp256k1::PrivateKey)
       expect(private_key.data.bytes).to eq(data.bytes)
+    end
+
+    it 'raises an error if data is not string' do
+      expect do
+        subject.private_key_from_data(1234)
+      end.to raise_error(TypeError)
     end
   end
 
@@ -151,7 +175,7 @@ RSpec.describe Secp256k1::Context do
       expect(result).to eq(signature)
     end
 
-    it 'raises an error if invalid signature data is given' do
+    it 'raises an error if signature data is not string' do
       expect do
         subject.signature_from_compact(123)
       end.to raise_error(TypeError)
@@ -238,6 +262,30 @@ RSpec.describe Secp256k1::Context do
         expect do
           subject.recoverable_signature_from_compact('test', 1)
         end.to raise_error(ArgumentError, 'compact signature is not 64 bytes')
+      end
+
+      it 'raises an error if compact signature data is not string' do
+        expect do
+          subject.recoverable_signature_from_compact(1234, 1)
+        end.to raise_error(TypeError)
+      end
+
+      it 'raises an error if recovery id is less < 0' do
+        signature = subject.sign_recoverable(key_pair.private_key, sha256('test'))
+        compact, = signature.compact
+
+        expect do
+          subject.recoverable_signature_from_compact(compact, -1)
+        end.to raise_error(ArgumentError, /invalid recovery ID/)
+      end
+
+      it 'raises an error if recovery id is > 3' do
+        signature = subject.sign_recoverable(key_pair.private_key, sha256('test'))
+        compact, = signature.compact
+
+        expect do
+          subject.recoverable_signature_from_compact(compact, 4)
+        end.to raise_error(ArgumentError, /invalid recovery ID/)
       end
     end
   end
