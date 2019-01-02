@@ -22,8 +22,8 @@ Instance Methods
 
 **Requires:** libsecp256k1 was built with the experimental ECDH module.
 
-Takes a `point` ([PublicKey]) and a `scalar` ([PrivateKey]) and returns a new
-[SharedSecret] containing the 32-byte shared secret. Raises a `RuntimeError` if
+Takes a `point` ([PublicKey](public_key.md)) and a `scalar` ([PrivateKey](private_key.md)) and returns a new
+[SharedSecret](shared_secret.md) containing the 32-byte shared secret. Raises a `RuntimeError` if
 the `scalar` is invalid (zero or causes an overflow).
 
 #### generate_key_pair
@@ -61,7 +61,7 @@ Signs the SHA-256 hash given by `hash32` using `private_key` and returns a new
 [Signature](signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md)
 object and `data` can be either a binary string or text.
 
-### sign_recoverable(private_key, hash32)
+#### sign_recoverable(private_key, hash32)
 
 **Requires:** libsecp256k1 was build with recovery module.
 
@@ -83,7 +83,7 @@ Raises a `RuntimeError` if the signature data is invalid.
 
 #### verify(signature, public_key, hash32)
 
-Verifies the given `signature` (type: [Signature](signature.md)) was signed by
-the private key corresponding to `public_key` (type: [PublicKey](public_key.md)) and signed `hash32`. Returns `true`
+Verifies the given `signature` ([Signature](signature.md)) was signed by
+the private key corresponding to `public_key` ([PublicKey](public_key.md)) and signed `hash32`. Returns `true`
 if `signature` is valid or `false` otherwise. Note that `data` can be either a
 text or binary string.

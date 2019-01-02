@@ -277,7 +277,7 @@ typedef enum ResultT_dummy {
  *   RESULT_FAILURE otherwise.
  */
 static ResultT
-GenerateRandomBytes(unsigned char *out_bytes, size_t in_size)
+GenerateRandomBytes(unsigned char *out_bytes, int in_size)
 {
   // OpenSSL RNG has not been seeded with enough data and is therefore
   // not usable.
@@ -1110,7 +1110,7 @@ Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
   return PublicKey_create_from_data(
     context,
     public_key_data,
-    RSTRING_LEN(in_public_key_data)
+    (int)RSTRING_LEN(in_public_key_data)
   );
 }
 
@@ -1228,6 +1228,13 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
   Signature *signature;
   VALUE signature_result;
   unsigned char *signature_data;
+
+  Check_Type(in_compact_signature, T_STRING);
+
+  if (RSTRING_LEN(in_compact_signature) != 64)
+  {
+    rb_raise(rb_eArgError, "compact signature must be 64 bytes");
+  }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   signature_data = (unsigned char*)StringValuePtr(in_compact_signature);
