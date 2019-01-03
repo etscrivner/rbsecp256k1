@@ -1,3 +1,4 @@
+dist: xenial
 language: ruby
 
 rvm:
@@ -8,10 +9,11 @@ os:
   - "linux"
   - "osx"
 
+# WITH_RECOVERY and WITH_ECDH are 1 by default. Test all variants where they
+# are 0.
 env:
-  - WITH_RECOVERY=1
+  - WITH_RECOVERY=0 WITH_ECDH=0
   - WITH_RECOVERY=0
-  - WITH_ECDH=1
   - WITH_ECDH=0
 
 addons:
@@ -27,12 +29,12 @@ addons:
       - python-dev
 
 before_install:
+  - gem update --system
+  - gem install bundler
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update ; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libtool pkg-config gmp libffi ; fi
 
 script:
-  - make deps
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo ldconfig ; fi
   - make setup
   - make build
   - make lint
