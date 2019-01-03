@@ -25,7 +25,7 @@ all: test
 deps:
 	cd vendor/secp256k1 && \
 	./autogen.sh && \
-	./configure $(LIBSECP256K1_FLAGS) && \
+	./configure --disable-benchmark --disable-exhaustive-tests --enable-shared=no --disable-tests --disable-debug $(LIBSECP256K1_FLAGS) && \
 	make && \
 	sudo make install
 
