@@ -4,8 +4,11 @@ require 'zip'
 
 # Recipe for downloading and building libsecp256k1 as part of installation
 class Secp256k1Recipe < MiniPortile
-  # Hard-coded URL for downloading zipfile
-  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/master.zip'.freeze
+  # Hard-coded URL for libsecp256k1 zipfile (HEAD of master as of 26-11-2018)
+  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/e34ceb333b1c0e6f4115ecbb80c632ac1042fa49.zip'.freeze
+
+  # Expected SHA-256 of the zipfile above (computed using sha256sum)
+  LIBSECP256K1_SHA256 = 'd87d3ca7ebc42edbabb0f38e79205040b24b09b3e6d1c9ac89585de9bf302143'.freeze
 
   WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
   WITH_ECDH = ENV.fetch('WITH_ECDH', '1') == '1'
@@ -41,6 +44,7 @@ class Secp256k1Recipe < MiniPortile
 
   def download
     download_file_http(LIBSECP256K1_ZIP_URL, @tarball)
+    verify_file(local_path: @tarball, sha256: LIBSECP256K1_SHA256)
   end
 
   def downloaded?
