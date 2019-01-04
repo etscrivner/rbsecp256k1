@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
 
   s.files = (
     Dir['lib/**/**.rb'] +
-    %w[ext/rbsecp256k1/rbsecp256k1.c ext/rbsecp256k1/extconf.rb Rakefile]
+    %w[ext/rbsecp256k1/rbsecp256k1.c ext/rbsecp256k1/extconf.rb Rakefile README.md]
   )
   s.require_paths = %w[ext lib]
 
