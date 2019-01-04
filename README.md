@@ -50,7 +50,7 @@ you have run `ldconfig` so that your library load paths have been updated.
 Dependencies for building libsecp256k1 and this library:
 
 ```
-brew install libtool pkg-config gmp libffi
+brew install openssl libtool pkg-config gmp libffi
 ```
 
 ## Features
@@ -113,10 +113,6 @@ make test WITH_RECOVERY=0 WITH_ECDH=0
 ```
 make gem
 ```
-
-When compiling, if building on Mac OS with openssl installed via homebrew it
-may be necessary to specify the location of your openssl library:
-`PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig" ruby extconf.rb`.
 
 ### Installing Gem Locally
 
