@@ -1,13 +1,5 @@
 .PHONY: setup build test lint gem install uninstall clean docserver
 
-# Retrieve operating system name
-OS=$(shell uname -s)
-
-# On macOS we need to prefix to homebrew OpenSSL path before building
-ifeq ($(OS),Darwin)
-	COMPILE_PREFIX=PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig"
-endif
-
 all: test
 
 setup:
