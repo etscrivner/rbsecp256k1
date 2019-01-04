@@ -7,6 +7,15 @@ and later libsecp256k1 is bundled with the gem.
 
 [Documentation](documentation/index.md)
 
+### Why wrap libsecp256k1?
+
+[libsecp256k1](https://github.com/bitcoin-core/secp256k1) is an extremely optimized implementation of public key derivation,
+signing, and verification with the secp256k1 elliptic curve. It comes with its
+own set of benchmarks, but from [benchmarking done by Peter Wuille](https://www.reddit.com/r/Bitcoin/comments/2weymr/experiment_bitcoin_core_0100_initial_sync_time/coqghm2) it is ~4.9x
+faster than the OpenSSL implementation of the same curve. It is the only library
+that provides constant time signing of this curve and has been deployed as part
+of Bitcoin since [v0.10.0](https://bitcoin.org/en/release/v0.10.0#improved-signing-security)
+
 ## Installation
 
 The simplest installation:
