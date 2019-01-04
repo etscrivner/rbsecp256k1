@@ -94,7 +94,7 @@ ctx.verify(sig, public_key, Digest::SHA256.digest("test message"))
 To clone the repository and its submodules you'll need to the following:
 
 ```
-git clone --recurse-submodules git@github.com:etscrivner/rbsecp256k1.git
+git clone git@github.com:etscrivner/rbsecp256k1.git
 ```
 
 ### Installing libsecp256k1
