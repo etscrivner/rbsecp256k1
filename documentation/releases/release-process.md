@@ -4,10 +4,10 @@ Release Process
 ### Verify Builds
 
 * Update version in `lib/rbsecp256k1/version.rb`
-* Building against libsecp256k1 without any modules works (`make uninstall-deps && make clean && make deps && make test`)
-* Building against libsecp256k1 with recovery module works (`make uninstall-deps && make clean && make deps WITH_RECOVERY=1 && make test WITH_RECOVERY=1`)
-* Building against libsecp256k1 with ECDH module works (`make uninstall-deps && make clean && make deps WITH_ECDH=1 && make test WITH_ECDH=1`)
-* Building against libsecp256k1 with both modules works (`make uninstall-deps && make clean && make deps WITH_RECOVERY=1 WITH_ECDH=1 && make test WITH_RECOVERY=1 WITH_ECDH=1`)
+* Building against libsecp256k1 without any modules works (`make clean && make test`)
+* Building against libsecp256k1 with recovery module works (`make clean &&  make test WITH_RECOVERY=0`)
+* Building against libsecp256k1 with ECDH module works (`make clean && make test WITH_ECDH=0`)
+* Building against libsecp256k1 with both modules works (`make clean && make test WITH_RECOVERY=0 WITH_ECDH=0`)
 
 ### Cutting A Release
 
