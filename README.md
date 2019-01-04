@@ -2,7 +2,8 @@
 
 [![Build Status](https://travis-ci.com/etscrivner/rbsecp256k1.svg?branch=master)](https://travis-ci.com/etscrivner/rbsecp256k1) [![Gem Version](https://badge.fury.io/rb/rbsecp256k1.svg)](https://badge.fury.io/rb/rbsecp256k1)
 
-Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/secp256k1).
+Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/secp256k1). In rbsecp256k1 3.0.0
+and later libsecp256k1 is bundled with the gem.
 
 [Documentation](documentation/index.md)
 
@@ -14,21 +15,16 @@ The simplest installation:
 gem install rbsecp256k1
 ```
 
-### Requirements
+## Requirements
 
-You'll need to have compiled and installed [libsecp256k1](https://github.com/bitcoin-core/secp256k1) from source. You'll
-also need the OpenSSL development bindings. More info is available in the Linux
-and macOS sections below.
-
-### Building libsecp256k1
-
-To build libsecp256k1 from source you can do the following:
+If you want to use your system version of libsecp256k1 rather than the bundled
+version use the `--with-system-libraries` flag:
 
 ```
-make deps WITH_RECOVERY=1 WITH_ECDH=1
+gem install rbsecp256k1 -- --with-system-libraries
 ```
 
-### Linux
+#### Linux
 
 Install the dependencies for building libsecp256k1 and this library:
 
@@ -40,7 +36,7 @@ sudo apt-get install build-essential automake pkg-config libtool \
 **NOTE:** If you have installed libsecp256k1 but the gem cannot find it. Ensure
 you have run `ldconfig` so that your library load paths have been updated.
 
-### macOS
+#### macOS
 
 Dependencies for building libsecp256k1 and this library:
 
@@ -48,44 +44,9 @@ Dependencies for building libsecp256k1 and this library:
 brew install libtool pkg-config gmp libffi
 ```
 
-## Examples
+## Features
 
-You should now be able to use the gem as expected:
-
-```ruby
-require 'rbsecp256k1'
-require 'digest'
-
-ctx = Secp256k1::Context.new
-key_pair = ctx.generate_key_pair
-
-puts Secp256k1::Util.bin_to_hex(key_pair.public_key.uncompressed)
-puts Secp256k1::Util.bin_to_hex(key_pair.public_key.compressed)
-
-message_hash = Digest::SHA256.digest('test message')
-sig = ctx.sign(key_pair.private_key, message_hash)
-puts Secp256k1::Util.bin_to_hex(sig.der_encoded)
-
-ctx.verify(sig, key_pair.public_key, message_hash)
-# => true
-```
-
-Similarly you can start with existing key and signature data:
-
-```ruby
-require 'rbsecp256k1'
-require 'digest'
-
-ctx = Secp256k1::Context.new
-public_key = ctx.public_key_from_data("\x02/dUQ|\x82\x11r\xFA\xF97\x1F\x95\xD1:\xBC\xE2v\xB2A]\xCB~:\xD7'\e\xBF\xEDjC\x9B")
-sig = ctx.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\x02 \t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f")
-
-puts Secp256k1::Util.bin_to_hex(public_key.uncompressed)
-puts Secp256k1::Util.bin_to_hex(public_key.compressed)
-
-ctx.verify(sig, public_key, Digest::SHA256.digest("test message"))
-# => true
-```
+See [rbsecp256k1 documentation](documentation/index.md) for examples and complete list of supported functionality.
 
 ## Development
 
@@ -95,23 +56,6 @@ To clone the repository and its submodules you'll need to the following:
 
 ```
 git clone git@github.com:etscrivner/rbsecp256k1.git
-```
-
-### Installing libsecp256k1
-
-libsecp256k1 is vendored into this repository as a submodule. To build and
-install it you can run:
-
-```
-make deps
-```
-
-### Uninstalling libsecp256k1
-
-libsecp256k1 can also be uninstall:
-
-```
-make uninstall-deps
 ```
 
 ### Setup
@@ -137,11 +81,33 @@ make build
 make test
 ```
 
+To test with recovery functionality disabled run:
+
+```
+make test WITH_RECOVERY=0
+```
+
+To test with ECDH functionality disabled run:
+
+```
+make test WITH_ECDH=0
+```
+
+To test with both disabled run:
+
+```
+make test WITH_RECOVERY=0 WITH_ECDH=0
+```
+
 ### Building Gem
 
 ```
 make gem
 ```
+
+When compiling, if building on Mac OS with openssl installed via homebrew it
+may be necessary to specify the location of your openssl library:
+`PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig" ruby extconf.rb`.
 
 ### Installing Gem Locally
 
@@ -174,27 +140,3 @@ To run the [YARD](https://yardoc.org/) documentation server:
 ```
 make docserver
 ```
-
-### Linux
-
-Dependencies for building library and its dependencies:
-
-```
-sudo apt-get install build-essential automake pkg-config libtool \
-  libffi-dev libssl-dev libgmp-dev python-dev
-```
-
-**NOTE:** If you have installed libsecp256k1 but the gem cannot find it. Ensure
-you have run `ldconfig` so that your library load paths have been updated.
-
-### macOS
-
-Dependencies for building library and its dependencies:
-
-```
-brew install libtool pkg-config gmp libffi
-```
-
-When running the `ruby extconf.rb` step, if building on Mac OS with openssl
-installed via homebrew it may be helpful to specify the location of your openssl
-library: `PKG_CONFIG_PATH="/usr/local/opt/openssl/lib/pkgconfig" ruby extconf.rb`.

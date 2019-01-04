@@ -199,15 +199,6 @@ signature = context.signature_from_compact("<\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\
 Recoverable Signature Examples
 ------------------------------
 
-### Compiling libsecp256k1 with recovery module
-
-To compile the libsecp256k1 library with the recovery module you need to pass
-the appropriate flags to libsecp256k1:
-
-```
-./configure --enable-module-recovery
-```
-
 ### 1. Checking for recovery module
 
 To check if you have compiled the recovery module into your local libsecp256k1
@@ -298,4 +289,30 @@ public_key = recoverable_signature.recover_public_key(hash)
 
 public_key == key_pair.public_key
 # => true
+```
+
+EC Diffie-Hellman
+-----------------
+
+### 1. Checking for ECDH module
+
+To check if you have compiled the ECDH module into your local libsecp256k1 run
+the following:
+
+```
+Secp256k1.have_ecdh?
+# => true
+```
+
+### 2. Generating a shared secret
+
+To generate a shared secret run the following:
+
+```
+context = Secp256k1::Context.new
+key_pair = context.generate_key_pair
+
+shared_secret = context.ecdh(key_pair.public_key, key_pair.private_key)
+shared_secret.data
+# => "\x1FQ\x90X\xA5\xF2\xAEx;\xD7i\xB6\\T,2[\x90\xD1)a$\x1CA\x17\x8F\e\x91\xE3\x06C\x93"
 ```
