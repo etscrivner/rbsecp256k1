@@ -21,7 +21,7 @@ RSpec.describe Secp256k1::PublicKey do
   end
 
   describe '.from_data' do
-    it 'loadds compressed public key' do
+    it 'loads compressed public key' do
       public_key = Secp256k1::PublicKey.from_data(key_pair.public_key.compressed)
       expect(public_key).to eq(key_pair.public_key)
     end
