@@ -169,14 +169,12 @@ key_pair = context.key_pair_from_private_key("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD
 This example shows how to load a public key from binary data:
 
 ```ruby
-context = Secp256k1::Context.new
-
 # 1. Load public key from uncompressed pubkey
-public_key = context.public_key_from_data("\x04$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5\xEEEj\xAB\xD9\xFE\b\e7Zk\xC5{k\x12\xE3\xEA\xA2\xA5\xD7\xC1\xA5&\xE5|:K\xA9 X\xA3\x90")
+public_key = Secp256k1::PublicKey.from_data("\x04$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5\xEEEj\xAB\xD9\xFE\b\e7Zk\xC5{k\x12\xE3\xEA\xA2\xA5\xD7\xC1\xA5&\xE5|:K\xA9 X\xA3\x90")
 # => #<Secp256k1::PublicKey:0x0000559b0bdc72f0>
 
 # 2. Load public key from compressed pubkey
-public_key = context.public_key_from_data("\x02$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5")
+public_key = Secp256k1::PublicKey.from_data("\x02$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5")
 # => #<Secp256k1::PublicKey:0x0000559b0bdd3668>
 ```
 

@@ -469,8 +469,7 @@ PublicKey_create_from_private_key(Context *in_context,
 }
 
 static VALUE
-PublicKey_create_from_data(Context *in_context,
-                           unsigned char *in_public_key_data,
+PublicKey_create_from_data(unsigned char *in_public_key_data,
                            unsigned int in_public_key_data_len)
 {
   PublicKey *public_key;
@@ -488,6 +487,28 @@ PublicKey_create_from_data(Context *in_context,
   }
 
   return result;
+}
+
+/**
+ * Loads a public key from compressed or uncompressed binary data.
+ *
+ * @param in_public_key_data [String] binary string with compressed or
+ *   uncompressed public key data.
+ * @return [Secp256k1::PublicKey] public key derived from data.
+ * @raise [RuntimeError] if public key data is invalid.
+ */
+static VALUE
+PublicKey_from_data(VALUE klass, VALUE in_public_key_data)
+{
+  unsigned char *public_key_data;
+
+  Check_Type(in_public_key_data, T_STRING);
+
+  public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
+  return PublicKey_create_from_data(
+    public_key_data,
+    (int)RSTRING_LEN(in_public_key_data)
+  );
 }
 
 /**
@@ -1077,31 +1098,6 @@ Context_generate_key_pair(VALUE self)
 }
 
 /**
- * Loads a public key from compressed or uncompressed binary data.
- *
- * @param in_public_key_data [String] binary string with compressed or
- *   uncompressed public key data.
- * @return [Secp256k1::PublicKey] public key derived from data.
- * @raise [RuntimeError] if public key data is invalid.
- */
-static VALUE
-Context_public_key_from_data(VALUE self, VALUE in_public_key_data)
-{
-  Context *context;
-  unsigned char *public_key_data;
-
-  Check_Type(in_public_key_data, T_STRING);
-
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
-  return PublicKey_create_from_data(
-    context,
-    public_key_data,
-    (int)RSTRING_LEN(in_public_key_data)
-  );
-}
-
-/**
  * Load a private key from binary data.
  *
  * @param in_private_key_data [String] 32 byte binary string of private key
@@ -1428,7 +1424,7 @@ Context_recoverable_signature_from_compact(
   );
 
   if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-        context->ctx,
+        secp256k1_context_no_precomp,
         &(recoverable_signature->sig),
         compact_sig,
         recovery_id) == 1)
@@ -1572,10 +1568,6 @@ void Init_rbsecp256k1()
                    Context_key_pair_from_private_key,
                    1);
   rb_define_method(Secp256k1_Context_class,
-                   "public_key_from_data",
-                   Context_public_key_from_data,
-                   1);
-  rb_define_method(Secp256k1_Context_class,
                    "private_key_from_data",
                    Context_private_key_from_data,
                    1);
@@ -1622,6 +1614,12 @@ void Init_rbsecp256k1()
                    "uncompressed",
                    PublicKey_uncompressed,
                    0);
+  rb_define_singleton_method(
+    Secp256k1_PublicKey_class,
+    "from_data",
+    PublicKey_from_data,
+    1
+  );
   rb_define_method(Secp256k1_PublicKey_class, "==", PublicKey_equals, 1);
 
   // Secp256k1::PrivateKey

@@ -19,4 +19,28 @@ RSpec.describe Secp256k1::PublicKey do
       expect(compressed.length).to eq(33)
     end
   end
+
+  describe '.from_data' do
+    it 'loadds compressed public key' do
+      public_key = Secp256k1::PublicKey.from_data(key_pair.public_key.compressed)
+      expect(public_key).to eq(key_pair.public_key)
+    end
+
+    it 'loads uncompressed public key' do
+      public_key = Secp256k1::PublicKey.from_data(key_pair.public_key.uncompressed)
+      expect(public_key).to eq(key_pair.public_key)
+    end
+
+    it 'raises an error if public key is invalid' do
+      expect do
+        Secp256k1::PublicKey.from_data(Random.new.bytes(64))
+      end.to raise_error(RuntimeError, 'invalid public key data')
+    end
+
+    it 'raises an error if public key data is not string' do
+      expect do
+        Secp256k1::PublicKey.from_data(1234)
+      end.to raise_error(TypeError)
+    end
+  end
 end

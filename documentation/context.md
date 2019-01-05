@@ -42,12 +42,6 @@ if the private key is invalid or key derivation fails.
 Creates a new [PrivateKey](private_key.md) from `private_key_data`. Raises an `ArgumentError`
 if private key is invalid.
 
-#### public_key_from_data(public_key_data)
-
-If `public_key_data` is a valid compressed or uncompressed public key, returns
-a new [PublicKey](public_key.md) object corresponding to. The `public_key_data`
-is expected to be a binary string.
-
 #### recoverable_signature_from_compact(compact_signature, recovery_id)
 
 **Requires:** libsecp256k1 was build with recovery module.
