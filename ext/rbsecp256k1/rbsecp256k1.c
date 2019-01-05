@@ -95,7 +95,6 @@ typedef struct PrivateKey_dummy {
 
 typedef struct Signature_dummy {
   secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature
-  secp256k1_context *ctx;
 } Signature;
 
 #ifdef HAVE_SECP256K1_RECOVERY_H
@@ -193,7 +192,6 @@ static void
 Signature_free(void *in_signature)
 {
   Signature *signature = (Signature*)in_signature;
-  secp256k1_context_destroy(signature->ctx);
   xfree(signature);
 }
 
@@ -681,7 +679,7 @@ Signature_der_encoded(VALUE self)
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   der_signature_len = 72;
-  if (secp256k1_ecdsa_signature_serialize_der(signature->ctx,
+  if (secp256k1_ecdsa_signature_serialize_der(secp256k1_context_no_precomp,
                                               der_signature,
                                               &der_signature_len,
                                               &(signature->sig)) != 1)
@@ -706,7 +704,7 @@ Signature_compact(VALUE self)
 
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
-  if (secp256k1_ecdsa_signature_serialize_compact(signature->ctx,
+  if (secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_no_precomp,
                                                   compact_signature,
                                                   &(signature->sig)) != 1)
   {
@@ -744,14 +742,12 @@ Signature_normalized(VALUE self)
 
   was_normalized = Qfalse;
   if (secp256k1_ecdsa_signature_normalize(
-        signature->ctx,
+        secp256k1_context_no_precomp,
         &(normalized_signature->sig),
         &(signature->sig)) == 1)
   {
     was_normalized = Qtrue;
   }
-
-  normalized_signature->ctx = secp256k1_context_clone(signature->ctx);
 
   result = rb_ary_new2(2);
   rb_ary_push(result, was_normalized);
@@ -780,10 +776,10 @@ Signature_equals(VALUE self, VALUE other)
   TypedData_Get_Struct(other, Signature, &Signature_DataType, rhs);
 
   secp256k1_ecdsa_signature_serialize_compact(
-    lhs->ctx, lhs_compact, &(lhs->sig)
+    secp256k1_context_no_precomp, lhs_compact, &(lhs->sig)
   );
   secp256k1_ecdsa_signature_serialize_compact(
-    rhs->ctx, rhs_compact, &(rhs->sig)
+    secp256k1_context_no_precomp, rhs_compact, &(rhs->sig)
   );
 
   if (memcmp(lhs_compact, rhs_compact, 64) == 0)
@@ -838,7 +834,7 @@ RecoverableSignature_compact(VALUE self)
   );
 
   if (secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        recoverable_signature->ctx,
+        secp256k1_context_no_precomp,
         compact_sig,
         &recovery_id,
         &(recoverable_signature->sig)) != 1)
@@ -884,11 +880,10 @@ RecoverableSignature_to_signature(VALUE self)
 
   // NOTE: This method cannot fail
   secp256k1_ecdsa_recoverable_signature_convert(
-    recoverable_signature->ctx,
+    secp256k1_context_no_precomp,
     &(signature->sig),
     &(recoverable_signature->sig));
 
-  signature->ctx = secp256k1_context_clone(recoverable_signature->ctx);
   return result;
 }
 
@@ -1203,7 +1198,6 @@ Context_signature_from_der_encoded(VALUE self, VALUE in_der_encoded_signature)
     rb_raise(rb_eArgError, "invalid DER encoded signature");
   }
 
-  signature->ctx = secp256k1_context_clone(context->ctx);
   return signature_result;
 }
 
@@ -1243,7 +1237,6 @@ Context_signature_from_compact(VALUE self, VALUE in_compact_signature)
     rb_raise(rb_eArgError, "invalid compact signature");
   }
 
-  signature->ctx = secp256k1_context_clone(context->ctx);
   return signature_result;
 }
 
@@ -1286,7 +1279,6 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
                        private_key->data,
                        &(signature->sig))))
   {
-    signature->ctx = secp256k1_context_clone(context->ctx);
     return signature_result;
   }
 
