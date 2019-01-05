@@ -87,7 +87,6 @@ typedef struct KeyPair_dummy {
 
 typedef struct PublicKey_dummy {
   secp256k1_pubkey pubkey; // Opaque object containing public key data
-  secp256k1_context *ctx;
 } PublicKey;
 
 typedef struct PrivateKey_dummy {
@@ -140,7 +139,6 @@ PublicKey_free(void *in_public_key)
 {
   PublicKey *public_key;
   public_key = (PublicKey*)in_public_key;
-  secp256k1_context_destroy(public_key->ctx);
   xfree(public_key);
 }
 
@@ -471,7 +469,6 @@ PublicKey_create_from_private_key(Context *in_context,
     rb_raise(rb_eTypeError, "invalid private key data");
   }
 
-  public_key->ctx = secp256k1_context_clone(in_context->ctx);
   return result;
 }
 
@@ -486,7 +483,7 @@ PublicKey_create_from_data(Context *in_context,
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
   TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
-  if (secp256k1_ec_pubkey_parse(in_context->ctx,
+  if (secp256k1_ec_pubkey_parse(secp256k1_context_no_precomp,
                                 &(public_key->pubkey),
                                 in_public_key_data,
                                 in_public_key_data_len) != 1)
@@ -494,7 +491,6 @@ PublicKey_create_from_data(Context *in_context,
     rb_raise(rb_eRuntimeError, "invalid public key data");
   }
 
-  public_key->ctx = secp256k1_context_clone(in_context->ctx);
   return result;
 }
 
@@ -512,7 +508,7 @@ PublicKey_uncompressed(VALUE self)
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
-  secp256k1_ec_pubkey_serialize(public_key->ctx,
+  secp256k1_ec_pubkey_serialize(secp256k1_context_no_precomp,
                                 serialized_pubkey,
                                 &serialized_pubkey_len,
                                 &(public_key->pubkey),
@@ -535,7 +531,7 @@ PublicKey_compressed(VALUE self)
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
-  secp256k1_ec_pubkey_serialize(public_key->ctx,
+  secp256k1_ec_pubkey_serialize(secp256k1_context_no_precomp,
                                 serialized_pubkey,
                                 &serialized_pubkey_len,
                                 &(public_key->pubkey),
@@ -569,14 +565,14 @@ PublicKey_equals(VALUE self, VALUE other)
   TypedData_Get_Struct(other, PublicKey, &PublicKey_DataType, rhs);
 
   secp256k1_ec_pubkey_serialize(
-    lhs->ctx,
+    secp256k1_context_no_precomp,
     lhs_compressed,
     &lhs_len,
     &(lhs->pubkey),
     SECP256K1_EC_COMPRESSED
   );
   secp256k1_ec_pubkey_serialize(
-    rhs->ctx,
+    secp256k1_context_no_precomp,
     rhs_compressed,
     &rhs_len,
     &(rhs->pubkey),
@@ -936,7 +932,6 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
                               &(recoverable_signature->sig),
                               hash32) == 1)
   {
-    public_key->ctx = secp256k1_context_clone(recoverable_signature->ctx);
     return result;
   }
 
