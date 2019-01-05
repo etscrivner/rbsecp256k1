@@ -37,17 +37,6 @@ Returns a new [KeyPair](key_pair.md) from the given `private_key_data`. The
 `private_key_data` is expected to be a binary string. Raises a `RuntimeError`
 if the private key is invalid or key derivation fails.
 
-#### private_key_from_data(private_key_data)
-
-Creates a new [PrivateKey](private_key.md) from `private_key_data`. Raises an `ArgumentError`
-if private key is invalid.
-
-#### public_key_from_data(public_key_data)
-
-If `public_key_data` is a valid compressed or uncompressed public key, returns
-a new [PublicKey](public_key.md) object corresponding to. The `public_key_data`
-is expected to be a binary string.
-
 #### recoverable_signature_from_compact(compact_signature, recovery_id)
 
 **Requires:** libsecp256k1 was build with recovery module.
@@ -68,18 +57,6 @@ object and `data` can be either a binary string or text.
 Signs the data represented by the SHA-256 hash `hash32` using `private_key` and returns a
 new [RecoverableSignature](recoverable_signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md) and
 `data` can be either a binary string or text.
-
-#### signature_from_compact(compact_signature)
-
-Parses `compact_signature` and returns a new [Signature](signature.md) object corresponding to
-its data. The `compact_signature` is expected to be a binary string. Raises a
-`RuntimeError` if the signature data is invalid.
-
-#### signature_from_der_encoded(der_encoded_signature)
-
-Parses `der_encoded_signature` and returns a new [Signature](signature.md) object corresponding
-to its data. The `der_encoded_signature` is expected to be a binary string.
-Raises a `RuntimeError` if the signature data is invalid.
 
 #### verify(signature, public_key, hash32)
 

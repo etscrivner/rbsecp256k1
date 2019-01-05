@@ -153,13 +153,18 @@ context.verify(signature, key_pair.public_key, hash)
 # => false
 ```
 
-### 6. Loading a key pair from private key data
+### 6. Loading a private key or key pair from private key data
 
 This example shows how to load a key pair from raw binary private key data:
 
 ```ruby
 context = Secp256k1::Context.new
 
+#1. Load private key alone
+private_key = Secp256k1::PrivateKey.from_data("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
+# => #<Secp256k1::PrivateKey:0x00005647df1bcd30 @data="I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9">
+
+# 2. Load key pair from private key data
 key_pair = context.key_pair_from_private_key("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
 # => #<Secp256k1::KeyPair:0x0000559b0bbf9a90 @public_key=#<Secp256k1::PublicKey:0x0000559b0bbf9ab8>, @private_key=#<Secp256k1::PrivateKey:0x0000559b0bbf9ae0 @data="I\nX\x85\xAEz}\n\x9B\xA4\\\x81)Ԛq\xFDH\t\xBE\x8EP\xC5.\xC6\u001F7-\x86\xA0\xCB\xF9">>
 ```
@@ -169,14 +174,12 @@ key_pair = context.key_pair_from_private_key("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD
 This example shows how to load a public key from binary data:
 
 ```ruby
-context = Secp256k1::Context.new
-
 # 1. Load public key from uncompressed pubkey
-public_key = context.public_key_from_data("\x04$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5\xEEEj\xAB\xD9\xFE\b\e7Zk\xC5{k\x12\xE3\xEA\xA2\xA5\xD7\xC1\xA5&\xE5|:K\xA9 X\xA3\x90")
+public_key = Secp256k1::PublicKey.from_data("\x04$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5\xEEEj\xAB\xD9\xFE\b\e7Zk\xC5{k\x12\xE3\xEA\xA2\xA5\xD7\xC1\xA5&\xE5|:K\xA9 X\xA3\x90")
 # => #<Secp256k1::PublicKey:0x0000559b0bdc72f0>
 
 # 2. Load public key from compressed pubkey
-public_key = context.public_key_from_data("\x02$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5")
+public_key = Secp256k1::PublicKey.from_data("\x02$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\xED\x9A[\xAFf-<\x14\x84^QQ\"\x14\xC3\x91\xE4\xF2\xB5")
 # => #<Secp256k1::PublicKey:0x0000559b0bdd3668>
 ```
 
@@ -185,14 +188,12 @@ public_key = context.public_key_from_data("\x02$\xA2\xE7\xBB1\xC4|tN\xE6\xE4J-\x
 This example shows how to load signatures from binary data:
 
 ```ruby
-context = Secp256k1::Context.new
-
 # 1. From DER encoded signature
-signature = context.signature_from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\x02 \t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f")
+signature = Secp256k1::Signature.from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\x02 \t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f")
 # => #<Secp256k1::Signature:0x0000559b0b823d58>
 
 # 2. From compact signature
-signature = context.signature_from_compact("<\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f\x00")
+signature = Secp256k1::Signature.from_compact("<\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f\x00")
 # => #<Secp256k1::Signature:0x0000559b0bdcaa68>
 ```
 
@@ -204,7 +205,7 @@ Recoverable Signature Examples
 To check if you have compiled the recovery module into your local libsecp256k1
 run the following:
 
-```
+```ruby
 Secp256k1.have_recovery?
 # => true
 ```
@@ -213,7 +214,7 @@ Secp256k1.have_recovery?
 
 You can sign data producing a recoverable signature as follows:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -228,7 +229,7 @@ signature = context.sign_recoverable(key_pair.private_key, hash)
 
 You can produce the compact binary serialization of a recoverable signature:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -245,7 +246,7 @@ compact_data, recovery_id = signature.compact
 You can load a recoverable signature give its compact representation and
 recovery ID:
 
-```
+```ruby
 context = Secp256k1::Context.new
 
 compact_data = "D,\x9C\xA6%I\x14-\xCA\xC0\x11\x0F\xEB\x1E\xB0\xB6\\-\xE2\b\x98\xFB\xEA\xD5\x9BZ\xE6\xDF#\xC1\x1A\xEEL\xF02\xB1\xE9{\r\xEBhh<\\\xCF\xB6\x98\xEA\x8F\xF65\xF2\xBF\x84\xD8\xE5x\xF0\xA5)\xA2Wb\x9D"
@@ -260,7 +261,7 @@ signature = context.recoverable_signature_from_compact(compact_data, recovery_id
 You can convert a recoverable signature to a non-recoverable signature suitable
 for use by all methods that take a [Signature](signature.md) object:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -276,7 +277,7 @@ signature = recoverable_signature.to_signature
 
 You can recover the [PublicKey](public_key.md) associated with a recoverable signature:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -299,7 +300,7 @@ EC Diffie-Hellman
 To check if you have compiled the ECDH module into your local libsecp256k1 run
 the following:
 
-```
+```ruby
 Secp256k1.have_ecdh?
 # => true
 ```
@@ -308,7 +309,7 @@ Secp256k1.have_ecdh?
 
 To generate a shared secret run the following:
 
-```
+```ruby
 context = Secp256k1::Context.new
 key_pair = context.generate_key_pair
 

@@ -7,6 +7,15 @@ Secp256k1::PublicKey represents the public key part of a public-private key pair
 
 See: [KeyPair](key_pair.md)
 
+Class Methods
+-------------
+
+#### from_data(public_key_data)
+
+Parses compressed or uncompressed from binary string `public_key_data` and
+creates and returns a new public key from it. Raises a `RuntimeError` if the
+given public key data is invalid.
+
 Instance Methods
 ----------------
 

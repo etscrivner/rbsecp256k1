@@ -5,6 +5,14 @@ Secp256k1::PrivateKey
 
 Secp256k1::PrivateKey represents the private key part of a public-private key pair.
 
+Class Methods
+-------------
+
+#### from_data(private_key_data)
+
+Loads new private key from the given binary `private_key_data` string. Raises
+`ArgumentError` if the given data is invalid.
+
 Instance Methods
 ----------------
 
