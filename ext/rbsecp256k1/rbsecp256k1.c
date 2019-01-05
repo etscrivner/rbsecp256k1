@@ -91,7 +91,6 @@ typedef struct PublicKey_dummy {
 
 typedef struct PrivateKey_dummy {
   unsigned char data[32]; // Bytes comprising the private key data
-  secp256k1_context *ctx;
 } PrivateKey;
 
 typedef struct Signature_dummy {
@@ -155,7 +154,6 @@ PrivateKey_free(void *in_private_key)
 {
   PrivateKey *private_key;
   private_key = (PrivateKey*)in_private_key;
-  secp256k1_context_destroy(private_key->ctx);
   xfree(private_key);
 }
 
@@ -619,7 +617,6 @@ PrivateKey_create(Context *in_context, unsigned char *in_private_key_data)
   result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
   TypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
   MEMCPY(private_key->data, in_private_key_data, char, 32);
-  private_key->ctx = secp256k1_context_clone(in_context->ctx);
 
   rb_iv_set(result, "@data", rb_str_new((char*)in_private_key_data, 32));
 
