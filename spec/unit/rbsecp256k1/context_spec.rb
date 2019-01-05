@@ -55,44 +55,6 @@ RSpec.describe Secp256k1::Context do
     end
   end
 
-  describe '#private_key_from_data' do
-    it 'loads a private key from data' do
-      private_key = subject.private_key_from_data(key_pair.private_key.data)
-
-      expect(private_key).to be_a(Secp256k1::PrivateKey)
-      expect(private_key.data.length).to eq(32)
-      expect(private_key).to eq(key_pair.private_key)
-    end
-
-    it 'raises an error if private key has wrong length' do
-      expect do
-        subject.private_key_from_data('test')
-      end.to raise_error(ArgumentError, 'private key data must be 32 bytes in length')
-    end
-
-    it 'raises an error if private key data is not string' do
-      expect do
-        subject.private_key_from_data(1234)
-      end.to raise_error(TypeError)
-    end
-  end
-
-  describe '#private_key_from_data' do
-    it 'correctly loads private key from data' do
-      data = Random.new.bytes(32)
-      private_key = subject.private_key_from_data(data)
-
-      expect(private_key).to be_a(Secp256k1::PrivateKey)
-      expect(private_key.data.bytes).to eq(data.bytes)
-    end
-
-    it 'raises an error if data is not string' do
-      expect do
-        subject.private_key_from_data(1234)
-      end.to raise_error(TypeError)
-    end
-  end
-
   describe '#sign' do
     let(:text_message) { 'This is some text' }
     let(:binary_data) { "yuyY\xC8\v\x9E\xBEu\xB9\x02\xEA\xA5\x82V\xAC\xAA9\xA0\xA4U\"z\x99,J\x90\xADk8\xB2\xE1" }

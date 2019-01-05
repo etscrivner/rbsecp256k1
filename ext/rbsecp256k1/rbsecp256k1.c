@@ -623,12 +623,13 @@ PrivateKey_alloc(VALUE klass)
 }
 
 static VALUE
-PrivateKey_create(Context *in_context, unsigned char *in_private_key_data)
+PrivateKey_create(unsigned char *in_private_key_data)
 {
   PrivateKey *private_key;
   VALUE result;
 
-  if (secp256k1_ec_seckey_verify(in_context->ctx, in_private_key_data) != 1)
+  if (secp256k1_ec_seckey_verify(secp256k1_context_no_precomp,
+                                 in_private_key_data) != 1)
   {
     rb_raise(rb_eArgError, "invalid private key data");
   }
@@ -640,6 +641,29 @@ PrivateKey_create(Context *in_context, unsigned char *in_private_key_data)
   rb_iv_set(result, "@data", rb_str_new((char*)in_private_key_data, 32));
 
   return result;
+}
+
+/**
+ * Load a private key from binary data.
+ *
+ * @param in_private_key_data [String] 32 byte binary string of private key
+ *   data.
+ * @return [Secp256k1::PrivateKey] private key loaded from the given data.
+ * @raise [ArgumentError] if private key data is not 32 bytes or is invalid.
+ */
+static VALUE
+PrivateKey_from_data(VALUE klass, VALUE in_private_key_data)
+{
+  unsigned char *private_key_data;
+
+  Check_Type(in_private_key_data, T_STRING);
+  if (RSTRING_LEN(in_private_key_data) != 32)
+  {
+    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
+  }
+
+  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
+  return PrivateKey_create(private_key_data);
 }
 
 /**
@@ -1084,7 +1108,7 @@ Context_generate_key_pair(VALUE self)
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
 
-  private_key = PrivateKey_create(context, private_key_bytes);
+  private_key = PrivateKey_create(private_key_bytes);
   public_key = PublicKey_create_from_private_key(context, private_key_bytes);
   result = rb_funcall(
     Secp256k1_KeyPair_class,
@@ -1095,32 +1119,6 @@ Context_generate_key_pair(VALUE self)
   );
 
   return result;
-}
-
-/**
- * Load a private key from binary data.
- *
- * @param in_private_key_data [String] 32 byte binary string of private key
- *   data.
- * @return [Secp256k1::PrivateKey] private key loaded from the given data.
- * @raise [ArgumentError] if private key data is not 32 bytes or is invalid.
- */
-static VALUE
-Context_private_key_from_data(VALUE self, VALUE in_private_key_data)
-{
-  Context *context;
-  unsigned char *private_key_data;
-
-  Check_Type(in_private_key_data, T_STRING);
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
-
-  if (RSTRING_LEN(in_private_key_data) != 32)
-  {
-    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
-  }
-
-  return PrivateKey_create(context, private_key_data);
 }
 
 /**
@@ -1149,7 +1147,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
 
-  private_key = PrivateKey_create(context, private_key_data);
+  private_key = PrivateKey_create(private_key_data);
   public_key = PublicKey_create_from_private_key(context, private_key_data);
 
   return rb_funcall(
@@ -1568,10 +1566,6 @@ void Init_rbsecp256k1()
                    Context_key_pair_from_private_key,
                    1);
   rb_define_method(Secp256k1_Context_class,
-                   "private_key_from_data",
-                   Context_private_key_from_data,
-                   1);
-  rb_define_method(Secp256k1_Context_class,
                    "sign",
                    Context_sign,
                    2);
@@ -1629,6 +1623,12 @@ void Init_rbsecp256k1()
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
   rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
   rb_define_method(Secp256k1_PrivateKey_class, "==", PrivateKey_equals, 1);
+  rb_define_singleton_method(
+    Secp256k1_PrivateKey_class,
+    "from_data",
+    PrivateKey_from_data,
+    1
+  );
 
   // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,

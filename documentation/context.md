@@ -37,11 +37,6 @@ Returns a new [KeyPair](key_pair.md) from the given `private_key_data`. The
 `private_key_data` is expected to be a binary string. Raises a `RuntimeError`
 if the private key is invalid or key derivation fails.
 
-#### private_key_from_data(private_key_data)
-
-Creates a new [PrivateKey](private_key.md) from `private_key_data`. Raises an `ArgumentError`
-if private key is invalid.
-
 #### recoverable_signature_from_compact(compact_signature, recovery_id)
 
 **Requires:** libsecp256k1 was build with recovery module.

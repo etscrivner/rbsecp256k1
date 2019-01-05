@@ -153,13 +153,18 @@ context.verify(signature, key_pair.public_key, hash)
 # => false
 ```
 
-### 6. Loading a key pair from private key data
+### 6. Loading a private key or key pair from private key data
 
 This example shows how to load a key pair from raw binary private key data:
 
 ```ruby
 context = Secp256k1::Context.new
 
+#1. Load private key alone
+private_key = Secp256k1::PrivateKey.from_data("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
+# => #<Secp256k1::PrivateKey:0x00005647df1bcd30 @data="I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9">
+
+# 2. Load key pair from private key data
 key_pair = context.key_pair_from_private_key("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
 # => #<Secp256k1::KeyPair:0x0000559b0bbf9a90 @public_key=#<Secp256k1::PublicKey:0x0000559b0bbf9ab8>, @private_key=#<Secp256k1::PrivateKey:0x0000559b0bbf9ae0 @data="I\nX\x85\xAEz}\n\x9B\xA4\\\x81)Ԛq\xFDH\t\xBE\x8EP\xC5.\xC6\u001F7-\x86\xA0\xCB\xF9">>
 ```
