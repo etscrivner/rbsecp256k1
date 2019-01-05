@@ -6,12 +6,44 @@ RSpec.describe Secp256k1::Signature do
   let(:key_pair) { context.generate_key_pair }
   let(:signature) { context.sign(key_pair.private_key, sha256(message)) }
 
+  describe '.from_compact' do
+    it 'can load a compact signature' do
+      signature = context.sign(key_pair.private_key, sha256(message))
+      result = Secp256k1::Signature.from_compact(signature.compact)
+
+      expect(result).to be_a(Secp256k1::Signature)
+      expect(result).to eq(signature)
+    end
+
+    it 'raises an error if invalid signature data type is given' do
+      expect do
+        Secp256k1::Signature.from_compact(123)
+      end.to raise_error(TypeError)
+    end
+  end
+
+  describe '.from_der_encoded' do
+    it 'can load a der encoded signature' do
+      signature = context.sign(key_pair.private_key, sha256(message))
+      result = Secp256k1::Signature.from_der_encoded(signature.der_encoded)
+
+      expect(result).to be_a(Secp256k1::Signature)
+      expect(result).to eq(signature)
+    end
+
+    it 'raises an error if signature data is not string' do
+      expect do
+        Secp256k1::Signature.from_der_encoded(123)
+      end.to raise_error(TypeError)
+    end
+  end
+
   describe '#der_encoded' do
     it 'returns a valid DER encoded signature' do
       der_encoded = signature.der_encoded
 
       expect(der_encoded).to be_a(String)
-      expect(context.signature_from_der_encoded(der_encoded)).to eq(signature)
+      expect(Secp256k1::Signature.from_der_encoded(der_encoded)).to eq(signature)
     end
   end
 
@@ -21,7 +53,7 @@ RSpec.describe Secp256k1::Signature do
 
       expect(compact).to be_a(String)
       expect(compact.length).to eq(64)
-      expect(context.signature_from_compact(compact)).to eq(signature)
+      expect(Secp256k1::Signature.from_compact(compact)).to eq(signature)
     end
   end
 
@@ -50,7 +82,7 @@ RSpec.describe Secp256k1::Signature do
     end
 
     it 'computes normalized form of signature' do
-      signature = context.signature_from_der_encoded(
+      signature = Secp256k1::Signature.from_der_encoded(
         Secp256k1::Util.hex_to_bin(unnormalized_der_sig)
       )
 

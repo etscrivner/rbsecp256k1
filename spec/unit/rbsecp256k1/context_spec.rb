@@ -84,38 +84,6 @@ RSpec.describe Secp256k1::Context do
     end
   end
 
-  describe '#signature_from_compact' do
-    it 'can load a compact signature' do
-      signature = subject.sign(key_pair.private_key, sha256(message))
-      result = subject.signature_from_compact(signature.compact)
-
-      expect(result).to be_a(Secp256k1::Signature)
-      expect(result).to eq(signature)
-    end
-
-    it 'raises an error if invalid signature data type is given' do
-      expect do
-        subject.signature_from_compact(123)
-      end.to raise_error(TypeError)
-    end
-  end
-
-  describe '#signature_from_der_encoded' do
-    it 'can load a der encoded signature' do
-      signature = subject.sign(key_pair.private_key, sha256(message))
-      result = subject.signature_from_der_encoded(signature.der_encoded)
-
-      expect(result).to be_a(Secp256k1::Signature)
-      expect(result).to eq(signature)
-    end
-
-    it 'raises an error if signature data is not string' do
-      expect do
-        subject.signature_from_compact(123)
-      end.to raise_error(TypeError)
-    end
-  end
-
   describe '#verify' do
     it 'verifies signatures with matching public key and data' do
       signature = subject.sign(key_pair.private_key, sha256(message))
