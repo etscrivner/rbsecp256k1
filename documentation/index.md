@@ -205,7 +205,7 @@ Recoverable Signature Examples
 To check if you have compiled the recovery module into your local libsecp256k1
 run the following:
 
-```
+```ruby
 Secp256k1.have_recovery?
 # => true
 ```
@@ -214,7 +214,7 @@ Secp256k1.have_recovery?
 
 You can sign data producing a recoverable signature as follows:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -229,7 +229,7 @@ signature = context.sign_recoverable(key_pair.private_key, hash)
 
 You can produce the compact binary serialization of a recoverable signature:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -246,7 +246,7 @@ compact_data, recovery_id = signature.compact
 You can load a recoverable signature give its compact representation and
 recovery ID:
 
-```
+```ruby
 context = Secp256k1::Context.new
 
 compact_data = "D,\x9C\xA6%I\x14-\xCA\xC0\x11\x0F\xEB\x1E\xB0\xB6\\-\xE2\b\x98\xFB\xEA\xD5\x9BZ\xE6\xDF#\xC1\x1A\xEEL\xF02\xB1\xE9{\r\xEBhh<\\\xCF\xB6\x98\xEA\x8F\xF65\xF2\xBF\x84\xD8\xE5x\xF0\xA5)\xA2Wb\x9D"
@@ -261,7 +261,7 @@ signature = context.recoverable_signature_from_compact(compact_data, recovery_id
 You can convert a recoverable signature to a non-recoverable signature suitable
 for use by all methods that take a [Signature](signature.md) object:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -277,7 +277,7 @@ signature = recoverable_signature.to_signature
 
 You can recover the [PublicKey](public_key.md) associated with a recoverable signature:
 
-```
+```ruby
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
@@ -300,7 +300,7 @@ EC Diffie-Hellman
 To check if you have compiled the ECDH module into your local libsecp256k1 run
 the following:
 
-```
+```ruby
 Secp256k1.have_ecdh?
 # => true
 ```
@@ -309,7 +309,7 @@ Secp256k1.have_ecdh?
 
 To generate a shared secret run the following:
 
-```
+```ruby
 context = Secp256k1::Context.new
 key_pair = context.generate_key_pair
 
