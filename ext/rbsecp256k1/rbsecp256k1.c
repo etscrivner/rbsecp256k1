@@ -10,8 +10,6 @@
 // * openssl
 #include <ruby.h>
 
-#include <openssl/rand.h>
-
 #include <secp256k1.h>
 
 // Include recoverable signatures functionality if available
@@ -261,33 +259,6 @@ typedef enum ResultT_dummy {
   RESULT_SUCCESS,
   RESULT_FAILURE
 } ResultT;
-
-/**
- * Generate a series of cryptographically secure random bytes using OpenSSL.
- *
- * \param out_bytes Desired number of bytes will be written here.
- * \param in_size Number of bytes of random data to be generated.
- * \return RESULT_SUCCESS if the bytes were generated successfully,
- *   RESULT_FAILURE otherwise.
- */
-static ResultT
-GenerateRandomBytes(unsigned char *out_bytes, int in_size)
-{
-  // OpenSSL RNG has not been seeded with enough data and is therefore
-  // not usable.
-  if (RAND_status() == 0)
-  {
-    return RESULT_FAILURE;
-  }
-
-  // Attempt to generate random bytes using the OpenSSL RNG
-  if (RAND_bytes(out_bytes, in_size) != 1)
-  {
-    return RESULT_FAILURE;
-  }
-
-  return RESULT_SUCCESS;
-}
 
 /**
  * Computes the ECDSA signature of the given 32-byte SHA-256 hash.
@@ -1138,7 +1109,8 @@ static VALUE
 Context_initialize(VALUE self)
 {
   Context *context;
-  unsigned char seed[32];
+  unsigned char *seed32;
+  VALUE random_bytes;
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
 
@@ -1146,50 +1118,23 @@ Context_initialize(VALUE self)
     SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY
   );
 
+  rb_require("securerandom");
+  random_bytes = rb_eval_string("SecureRandom.random_bytes(32)");
+  Check_Type(random_bytes, T_STRING);
+  if (RSTRING_LEN(random_bytes) != 32)
+  {
+    rb_raise(rb_eRuntimeError, "could not get 32 bytes of random data");
+  }
+
   // Randomize the context at initialization time rather than before calls so
   // the same context can be used across threads safely.
-  GenerateRandomBytes(seed, 32);
-  if (secp256k1_context_randomize(context->ctx, seed) != 1)
+  seed32 = (unsigned char*)StringValuePtr(random_bytes);
+  if (secp256k1_context_randomize(context->ctx, seed32) != 1)
   {
     rb_raise(rb_eRuntimeError, "context randomization failed");
   }
 
   return self;
-}
-
-/**
- * Generate a new public-private key pair.
- *
- * @return [Secp256k1::KeyPair] newly generated key pair.
- * @raise [RuntimeError] if private key generation fails.
- */
-static VALUE
-Context_generate_key_pair(VALUE self)
-{
-  Context *context;
-  VALUE private_key;
-  VALUE public_key;
-  VALUE result;
-  unsigned char private_key_bytes[32];
-
-  if (FAILURE(GenerateRandomBytes(private_key_bytes, 32)))
-  {
-    rb_raise(rb_eRuntimeError, "unable to generate private key bytes.");
-  }
-
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-
-  private_key = PrivateKey_create(private_key_bytes);
-  public_key = PublicKey_create_from_private_key(context, private_key_bytes);
-  result = rb_funcall(
-    Secp256k1_KeyPair_class,
-    rb_intern("new"),
-    2,
-    public_key,
-    private_key
-  );
-
-  return result;
 }
 
 /**
@@ -1522,13 +1467,6 @@ Secp256k1_have_ecdh(VALUE module)
 
 void Init_rbsecp256k1()
 {
-  // NOTE: All classes derive from Data (rb_cData) rather than Object
-  // (rb_cObject). This makes it so we don't have to call rb_undef_alloc_func
-  // for each class and can instead simply define the allocation methods for
-  // each class.
-  //
-  // See: https://github.com/ruby/ruby/blob/trunk/doc/extension.rdoc#encapsulate-c-data-into-a-ruby-object
-
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
   rb_define_singleton_method(
@@ -1546,16 +1484,13 @@ void Init_rbsecp256k1()
 
   // Secp256k1::Context
   Secp256k1_Context_class = rb_define_class_under(
-    Secp256k1_module, "Context", rb_cData
+    Secp256k1_module, "Context", rb_cObject
   );
+  rb_undef_alloc_func(Secp256k1_Context_class);
   rb_define_alloc_func(Secp256k1_Context_class, Context_alloc);
   rb_define_method(Secp256k1_Context_class,
                    "initialize",
                    Context_initialize,
-                   0);
-  rb_define_method(Secp256k1_Context_class,
-                   "generate_key_pair",
-                   Context_generate_key_pair,
                    0);
   rb_define_method(Secp256k1_Context_class,
                    "key_pair_from_private_key",
@@ -1573,7 +1508,8 @@ void Init_rbsecp256k1()
   // Secp256k1::KeyPair
   Secp256k1_KeyPair_class = rb_define_class_under(Secp256k1_module,
                                                   "KeyPair",
-                                                  rb_cData);
+                                                  rb_cObject);
+  rb_undef_alloc_func(Secp256k1_KeyPair_class);
   rb_define_alloc_func(Secp256k1_KeyPair_class, KeyPair_alloc);
   rb_define_attr(Secp256k1_KeyPair_class, "public_key", 1, 0);
   rb_define_attr(Secp256k1_KeyPair_class, "private_key", 1, 0);
@@ -1586,7 +1522,8 @@ void Init_rbsecp256k1()
   // Secp256k1::PublicKey
   Secp256k1_PublicKey_class = rb_define_class_under(Secp256k1_module,
                                                     "PublicKey",
-                                                    rb_cData);
+                                                    rb_cObject);
+  rb_undef_alloc_func(Secp256k1_PublicKey_class);
   rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);
   rb_define_method(Secp256k1_PublicKey_class,
                    "compressed",
@@ -1606,8 +1543,9 @@ void Init_rbsecp256k1()
 
   // Secp256k1::PrivateKey
   Secp256k1_PrivateKey_class = rb_define_class_under(
-    Secp256k1_module, "PrivateKey", rb_cData
+    Secp256k1_module, "PrivateKey", rb_cObject
   );
+  rb_undef_alloc_func(Secp256k1_PrivateKey_class);
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
   rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
   rb_define_method(Secp256k1_PrivateKey_class, "==", PrivateKey_equals, 1);
@@ -1621,7 +1559,8 @@ void Init_rbsecp256k1()
   // Secp256k1::Signature
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
                                                     "Signature",
-                                                    rb_cData);
+                                                    rb_cObject);
+  rb_undef_alloc_func(Secp256k1_Signature_class);
   rb_define_alloc_func(Secp256k1_Signature_class, Signature_alloc);
   rb_define_method(Secp256k1_Signature_class,
                    "der_encoded",
@@ -1657,8 +1596,9 @@ void Init_rbsecp256k1()
   Secp256k1_RecoverableSignature_class = rb_define_class_under(
     Secp256k1_module,
     "RecoverableSignature",
-    rb_cData
+    rb_cObject
   );
+  rb_undef_alloc_func(Secp256k1_RecoverableSignature_class);
   rb_define_alloc_func(
     Secp256k1_RecoverableSignature_class,
     RecoverableSignature_alloc
@@ -1707,8 +1647,9 @@ void Init_rbsecp256k1()
   Secp256k1_SharedSecret_class = rb_define_class_under(
     Secp256k1_module,
     "SharedSecret",
-    rb_cData
+    rb_cObject
   );
+  rb_undef_alloc_func(Secp256k1_SharedSecret_class);
   rb_define_alloc_func(Secp256k1_SharedSecret_class, SharedSecret_alloc);
   rb_define_attr(Secp256k1_SharedSecret_class, "data", 1, 0);
 
