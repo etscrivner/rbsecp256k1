@@ -1,10 +1,28 @@
 require 'spec_helper'
 
 RSpec.describe Secp256k1::Context do
-  subject { Secp256k1::Context.new }
+  subject { Secp256k1::Context.create }
   let(:key_pair) { subject.generate_key_pair }
   let(:message) { 'test message' }
   let(:private_key_data) { "I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9" }
+
+  describe '#initialize' do
+    it 'raises an error if too few bytes are given' do
+      expect do
+        Secp256k1::Context.new(context_randomization_bytes: '1234')
+      end.to raise_error(ArgumentError, "context_randomization_bytes must be 32 bytes in length")
+    end
+
+    it 'raises an error if too many bytes are given' do
+      expect do
+        Secp256k1::Context.new(context_randomization_bytes: '1' * 33)
+      end.to raise_error(ArgumentError, "context_randomization_bytes must be 32 bytes in length")
+    end
+
+    it 'allows for 32 bytes of randomness' do
+      Secp256k1::Context.new(context_randomization_bytes: SecureRandom.random_bytes(32))
+    end
+  end
 
   describe '#generate_key_pair' do
     it 'generates a new key pair' do

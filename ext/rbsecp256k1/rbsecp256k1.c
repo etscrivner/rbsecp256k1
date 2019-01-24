@@ -9,7 +9,6 @@
 // * libsecp256k1
 // * openssl
 #include <ruby.h>
-
 #include <secp256k1.h>
 
 // Include recoverable signatures functionality if available
@@ -1102,15 +1101,27 @@ Context_alloc(VALUE klass)
  *
  * Context initialization should be infrequent as it is an expensive operation.
  *
+ * @param context_randomization_bytes [String,nil] (Optional) 32 bytes of
+ *   random data used to randomize the context. If omitted then the
+ *   context remains unrandomized. It is recommended that you provide this
+ *   argument.
  * @return [Secp256k1::Context] 
  * @raise [RuntimeError] if context randomization fails.
  */
 static VALUE
-Context_initialize(VALUE self)
+Context_initialize(int argc, const VALUE* argv, VALUE self)
 {
   Context *context;
   unsigned char *seed32;
-  VALUE random_bytes;
+  VALUE context_randomization_bytes;
+  VALUE opts;
+  static ID kwarg_ids;
+
+  context_randomization_bytes = Qnil;
+  if (!kwarg_ids)
+  {
+    CONST_ID(kwarg_ids, "context_randomization_bytes");
+  }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
 
@@ -1118,20 +1129,40 @@ Context_initialize(VALUE self)
     SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY
   );
 
-  rb_require("securerandom");
-  random_bytes = rb_eval_string("SecureRandom.random_bytes(32)");
-  Check_Type(random_bytes, T_STRING);
-  if (RSTRING_LEN(random_bytes) != 32)
+  // Handle optional second argument containing random bytes to use for
+  // randomization. We pass ":" to rb_scan_args to say that we expect keyword
+  // arguments. We then parse the opts result of the scan in order to grab
+  // context_randomization_bytes from the hash.
+  rb_scan_args(argc, argv, ":", &opts);
+  rb_get_kwargs(opts, &kwarg_ids, 0, 1, &context_randomization_bytes);
+
+  // We need this check because rb_get_kwargs will set the result to Qundef if
+  // the keyword argument is not provided. This lets us use the NIL_P
+  // predicate.
+  if (context_randomization_bytes == Qundef)
   {
-    rb_raise(rb_eRuntimeError, "could not get 32 bytes of random data");
+    context_randomization_bytes = Qnil;
   }
 
-  // Randomize the context at initialization time rather than before calls so
-  // the same context can be used across threads safely.
-  seed32 = (unsigned char*)StringValuePtr(random_bytes);
-  if (secp256k1_context_randomize(context->ctx, seed32) != 1)
+  if (!NIL_P(context_randomization_bytes)) // Random bytes given
   {
-    rb_raise(rb_eRuntimeError, "context randomization failed");
+    Check_Type(context_randomization_bytes, T_STRING);
+    if (RSTRING_LEN(context_randomization_bytes) != 32)
+    {
+      rb_raise(
+        rb_eArgError,
+        "context_randomization_bytes must be 32 bytes in length"
+      );
+    }
+
+    seed32 = (unsigned char*)StringValuePtr(context_randomization_bytes);
+
+    // Randomize the context at initialization time rather than before calls so
+    // the same context can be used across threads safely.
+    if (secp256k1_context_randomize(context->ctx, seed32) != 1)
+    {
+      rb_raise(rb_eRuntimeError, "context randomization failed");
+    }
   }
 
   return self;
@@ -1491,7 +1522,7 @@ void Init_rbsecp256k1()
   rb_define_method(Secp256k1_Context_class,
                    "initialize",
                    Context_initialize,
-                   0);
+                   -1);
   rb_define_method(Secp256k1_Context_class,
                    "key_pair_from_private_key",
                    Context_key_pair_from_private_key,

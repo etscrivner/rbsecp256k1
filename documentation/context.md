@@ -10,10 +10,25 @@ for multiple operations as much as possible.
 Initializers
 ------------
 
-#### new
+#### new(context_randomization_bytes: nil)
 
 Returns a newly initialized libsecp256k1 context. The context is randomized at
-initialization.
+initialization if given `context_randomization_bytes`. The
+`context_randomization_bytes` argument can optionally take a string containing
+32 bytes of random data, if not provided then the Context is not randomized and
+may be vulnerable to side-channel attacks.
+
+Class Methods
+-------------
+
+#### create
+
+Creates and returns a new randomized `Context` using `SecureRandom` for the
+random initialization bytes. This is the recommended method for initialization.
+
+#### create_unrandomized
+
+Creates a new unrandomized `Context`.
 
 Instance Methods
 ----------------
