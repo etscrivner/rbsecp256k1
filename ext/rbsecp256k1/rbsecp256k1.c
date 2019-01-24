@@ -40,6 +40,14 @@
 // applications. Context initialization is expensive so it is recommended that
 // a single context be initialized and used throughout an application when
 // possible.
+//
+// Exception Hierarchy:
+//
+// The following hierarchy is used for exceptions raised from the library:
+//
+// +- Error (Descends from StandardError)
+// |-- SerializationError
+// |-- DeserializationError
 
 //
 // The section below contains purely internal methods used exclusively by the
@@ -57,6 +65,9 @@ const size_t COMPACT_SIG_SIZE_BYTES = 64;
 // objects from anywhere. The use of global variables seems to be inline with
 // how the Ruby project builds its own extension gems.
 static VALUE Secp256k1_module;
+static VALUE Secp256k1_Error_class;
+static VALUE Secp256k1_SerializationError_class;
+static VALUE Secp256k1_DeserializationError_class;
 static VALUE Secp256k1_Context_class;
 static VALUE Secp256k1_KeyPair_class;
 static VALUE Secp256k1_PublicKey_class;
@@ -431,7 +442,7 @@ PublicKey_create_from_private_key(Context *in_context,
         (&public_key->pubkey),
         private_key_data) != 1)
   {
-    rb_raise(rb_eTypeError, "invalid private key data");
+    rb_raise(Secp256k1_DeserializationError_class, "invalid private key data");
   }
 
   return result;
@@ -452,7 +463,7 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
                                 in_public_key_data,
                                 in_public_key_data_len) != 1)
   {
-    rb_raise(rb_eRuntimeError, "invalid public key data");
+    rb_raise(Secp256k1_DeserializationError_class, "invalid public key data");
   }
 
   return result;
@@ -464,7 +475,7 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
  * @param in_public_key_data [String] binary string with compressed or
  *   uncompressed public key data.
  * @return [Secp256k1::PublicKey] public key derived from data.
- * @raise [RuntimeError] if public key data is invalid.
+ * @raise [Secp256k1::DeserializationError] if public key data is invalid.
  */
 static VALUE
 PublicKey_from_data(VALUE klass, VALUE in_public_key_data)
@@ -600,7 +611,7 @@ PrivateKey_create(unsigned char *in_private_key_data)
   if (secp256k1_ec_seckey_verify(secp256k1_context_no_precomp,
                                  in_private_key_data) != 1)
   {
-    rb_raise(rb_eArgError, "invalid private key data");
+    rb_raise(Secp256k1_Error_class, "invalid private key data");
   }
 
   result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
@@ -618,7 +629,7 @@ PrivateKey_create(unsigned char *in_private_key_data)
  * @param in_private_key_data [String] 32 byte binary string of private key
  *   data.
  * @return [Secp256k1::PrivateKey] private key loaded from the given data.
- * @raise [ArgumentError] if private key data is not 32 bytes or is invalid.
+ * @raise [Secp256k1::Error] if private key data is not 32 bytes or is invalid.
  */
 static VALUE
 PrivateKey_from_data(VALUE klass, VALUE in_private_key_data)
@@ -628,7 +639,10 @@ PrivateKey_from_data(VALUE klass, VALUE in_private_key_data)
   Check_Type(in_private_key_data, T_STRING);
   if (RSTRING_LEN(in_private_key_data) != 32)
   {
-    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
+    rb_raise(
+      Secp256k1_Error_class,
+      "private key data must be 32 bytes in length"
+    );
   }
 
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
@@ -683,7 +697,7 @@ Signature_alloc(VALUE klass)
  * @param in_compact_signature [String] compact signature as 64-byte binary
  *   string.
  * @return [Secp256k1::Signature] object deserialized from compact signature.
- * @raise [ArgumentError] if signature data is invalid.
+ * @raise [Secp256k1::DeserializationError] if signature data is invalid.
  */
 static VALUE
 Signature_from_compact(VALUE klass, VALUE in_compact_signature)
@@ -696,7 +710,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
 
   if (RSTRING_LEN(in_compact_signature) != 64)
   {
-    rb_raise(rb_eArgError, "compact signature must be 64 bytes");
+    rb_raise(Secp256k1_Error_class, "compact signature must be 64 bytes");
   }
 
   signature_data = (unsigned char*)StringValuePtr(in_compact_signature);
@@ -708,7 +722,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
                                               &(signature->sig),
                                               signature_data) != 1)
   {
-    rb_raise(rb_eArgError, "invalid compact signature");
+    rb_raise(Secp256k1_DeserializationError_class, "invalid compact signature");
   }
 
   return signature_result;
@@ -721,7 +735,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
  *   string.
  * @return [Secp256k1::Signature] signature object initialized using signature
  *   data.
- * @raise [ArgumentError] if signature data is invalid.
+ * @raise [Secp256k1::DeserializationError] if signature data is invalid.
  */
 static VALUE
 Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
@@ -742,7 +756,7 @@ Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
                                           signature_data,
                                           RSTRING_LEN(in_der_encoded_signature)) != 1)
   {
-    rb_raise(rb_eArgError, "invalid DER encoded signature");
+    rb_raise(Secp256k1_DeserializationError_class, "invalid DER encoded signature");
   }
 
   return signature_result;
@@ -769,7 +783,10 @@ Signature_der_encoded(VALUE self)
                                               &der_signature_len,
                                               &(signature->sig)) != 1)
   {
-    rb_raise(rb_eRuntimeError, "could not compute DER encoded signature");
+    rb_raise(
+      Secp256k1_SerializationError_class,
+      "could not compute DER encoded signature"
+    );
   }
 
   return rb_str_new((char*)der_signature, der_signature_len);
@@ -793,7 +810,10 @@ Signature_compact(VALUE self)
                                                   compact_signature,
                                                   &(signature->sig)) != 1)
   {
-    rb_raise(rb_eRuntimeError, "unable to compute compact signature");
+    rb_raise(
+      Secp256k1_SerializationError_class,
+      "unable to compute compact signature"
+    );
   }
 
   return rb_str_new((char*)compact_signature, COMPACT_SIG_SIZE_BYTES);
@@ -901,7 +921,7 @@ RecoverableSignature_alloc(VALUE klass)
  *
  * @return [Array] first element is the 64 byte compact encoding of signature,
  *   the second element is the integer recovery ID.
- * @raise [RuntimeError] if signature serialization fails.
+ * @raise [Secp256k1::SerializationError] if signature serialization fails.
  */
 static VALUE
 RecoverableSignature_compact(VALUE self)
@@ -924,7 +944,10 @@ RecoverableSignature_compact(VALUE self)
         &recovery_id,
         &(recoverable_signature->sig)) != 1)
   {
-    rb_raise(rb_eRuntimeError, "unable to serialize recoverable signature");
+    rb_raise(
+      Secp256k1_SerializationError_class,
+      "unable to serialize recoverable signature"
+    );
   }
 
   // Create a new array with room for 2 elements and push data onto it
@@ -977,7 +1000,9 @@ RecoverableSignature_to_signature(VALUE self)
  *
  * @param in_hash32 [String] 32-byte SHA-256 hash of data.
  * @return [Secp256k1::PublicKey] recovered public key.
- * @raise [RuntimeError] if the public key could not be recovered.
+ * @raise [Secp256k1::Error] if hash given is not 32 bytes.
+ * @raise [Secp256k1::DeserializationError] if public key could not be
+ *   recovered.
  */
 static VALUE
 RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
@@ -990,7 +1015,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
   Check_Type(in_hash32, T_STRING);
   if (RSTRING_LEN(in_hash32) != 32)
   {
-    rb_raise(rb_eArgError, "in_hash32 is not 32 bytes in length");
+    rb_raise(Secp256k1_Error_class, "in_hash32 is not 32 bytes in length");
   }
 
   TypedData_Get_Struct(
@@ -1012,7 +1037,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
     return result;
   }
 
-  rb_raise(rb_eRuntimeError, "unable to recover public key");
+  rb_raise(Secp256k1_DeserializationError_class, "unable to recover public key");
 }
 
 /**
@@ -1105,7 +1130,7 @@ Context_alloc(VALUE klass)
  *   context remains unrandomized. It is recommended that you provide this
  *   argument.
  * @return [Secp256k1::Context] 
- * @raise [RuntimeError] if context randomization fails.
+ * @raise [Secp256k1::Error] if context randomization fails.
  */
 static VALUE
 Context_initialize(int argc, const VALUE* argv, VALUE self)
@@ -1149,7 +1174,7 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
     if (RSTRING_LEN(context_randomization_bytes) != 32)
     {
       rb_raise(
-        rb_eArgError,
+        Secp256k1_Error_class,
         "context_randomization_bytes must be 32 bytes in length"
       );
     }
@@ -1160,7 +1185,10 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
     // the same context can be used across threads safely.
     if (secp256k1_context_randomize(context->ctx, seed32) != 1)
     {
-      rb_raise(rb_eRuntimeError, "context randomization failed");
+      rb_raise(
+        Secp256k1_Error_class,
+        "context randomization failed"
+      );
     }
   }
 
@@ -1172,7 +1200,7 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
  *
  * @param in_private_key_data [String] binary private key data
  * @return [Secp256k1::KeyPair] key pair initialized from the private key data.
- * @raise [ArgumentError] if the private key data is invalid or key derivation
+ * @raise [Secp256k1::Error] if the private key data is invalid or key derivation
  *   fails.
  */
 static VALUE
@@ -1188,7 +1216,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 
   if (RSTRING_LEN(in_private_key_data) != 32)
   {
-    rb_raise(rb_eArgError, "private key data must be 32 bytes in length");
+    rb_raise(Secp256k1_Error_class, "private key data must be 32 bytes in length");
   }
 
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
@@ -1212,8 +1240,8 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
  *   signing.
  * @param in_hash32 [String] 32-byte binary string with SHA-256 hash of data.
  * @return [Secp256k1::Signature] signature resulting from signing data.
- * @raise [RuntimeError] if signature computation fails.
- * @raise [ArgumentError] if hash is not 32-bytes in length.
+ * @raise [Secp256k1::Error] if hash is not 32-bytes in length or signature
+ *   computation fails.
  */
 static VALUE
 Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
@@ -1228,7 +1256,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
 
   if (RSTRING_LEN(in_hash32) != 32)
   {
-    rb_raise(rb_eArgError, "in_hash32 is not 32 bytes in length");
+    rb_raise(Secp256k1_Error_class, "in_hash32 is not 32 bytes in length");
   }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
@@ -1247,7 +1275,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
     return signature_result;
   }
 
-  rb_raise(rb_eRuntimeError, "unable to compute signature");
+  rb_raise(Secp256k1_Error_class, "unable to compute signature");
 }
 
 /**
@@ -1259,7 +1287,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
  * @param in_hash32 [String] 32-byte binary string containing SHA-256 hash of
  *   data.
  * @return [Boolean] True if the signature is valid, false otherwise.
- * @raise [ArgumentError] if hash is not 32-bytes in length.
+ * @raise [Secp256k1::Error] if hash is not 32-bytes in length.
  */
 static VALUE
 Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_hash32)
@@ -1273,7 +1301,7 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_hash32)
 
   if (RSTRING_LEN(in_hash32) != 32)
   {
-    rb_raise(rb_eArgError, "in_hash32 is not 32-bytes in length");
+    rb_raise(Secp256k1_Error_class, "in_hash32 is not 32-bytes in length");
   }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
@@ -1303,7 +1331,8 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_hash32)
  * @param in_hash32 [String] 32-byte binary string with SHA-256 hash of data.
  * @return [Secp256k1::RecoverableSignature] recoverable signature produced by
  *   signing the SHA-256 hash `in_hash32` with `in_private_key`.
- * @raise [ArgumentError] if the hash is not 32 bytes
+ * @raise [Secp256k1::Error] if the hash is not 32 bytes or signature could not
+ *   be computed.
  */
 static VALUE
 Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
@@ -1317,7 +1346,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
   Check_Type(in_hash32, T_STRING);
   if (RSTRING_LEN(in_hash32) != 32)
   {
-    rb_raise(rb_eArgError, "in_hash32 is not 32 bytes in length");
+    rb_raise(Secp256k1_Error_class, "in_hash32 is not 32 bytes in length");
   }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
@@ -1343,7 +1372,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
     return result;
   }
 
-  rb_raise(rb_eRuntimeError, "unable to compute recoverable signature");
+  rb_raise(Secp256k1_Error_class, "unable to compute recoverable signature");
 }
 
 /**
@@ -1353,8 +1382,9 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
  *   data.
  * @param in_recovery_id [Integer] recovery ID (range [0, 3])
  * @return [Secp256k1::RecoverableSignature] signature parsed from data.
- * @raise [RuntimeError] if signature data or recovery ID is invalid.
- * @raise [ArgumentError] if compact signature is not 64 bytes or recovery ID
+ * @raise [Secp256k1::DeserializationError] if signature data or recovery ID is
+ *   invalid.
+ * @raise [Secp256k1::Error] if compact signature is not 64 bytes or recovery ID
  *   is not in range [0, 3].
  */
 static VALUE
@@ -1376,12 +1406,12 @@ Context_recoverable_signature_from_compact(
 
   if (RSTRING_LEN(in_compact_sig) != 64)
   {
-    rb_raise(rb_eArgError, "compact signature is not 64 bytes");
+    rb_raise(Secp256k1_Error_class, "compact signature is not 64 bytes");
   }
 
   if (recovery_id < 0 || recovery_id > 3)
   {
-    rb_raise(rb_eArgError, "invalid recovery ID, must be in range [0, 3]");
+    rb_raise(Secp256k1_Error_class, "invalid recovery ID, must be in range [0, 3]");
   }
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
@@ -1402,7 +1432,7 @@ Context_recoverable_signature_from_compact(
     return result;
   }
   
-  rb_raise(rb_eRuntimeError, "unable to parse recoverable signature");
+  rb_raise(Secp256k1_DeserializationError_class, "unable to parse recoverable signature");
 }
 
 #endif // HAVE_SECP256K1_RECOVERY_H
@@ -1418,7 +1448,7 @@ Context_recoverable_signature_from_compact(
  * @param point [Secp256k1::PublicKey] public-key representing ECDH point.
  * @param scalar [Secp256k1::PrivateKey] private-key representing ECDH scalar.
  * @return [Secp256k1::SharedSecret] shared secret
- * @raise [RuntimeError] If scalar was invalid (zero or caused overflow).
+ * @raise [Secp256k1::Error] If scalar was invalid (zero or caused overflow).
  */
 static VALUE
 Context_ecdh(VALUE self, VALUE point, VALUE scalar)
@@ -1445,7 +1475,7 @@ Context_ecdh(VALUE self, VALUE point, VALUE scalar)
                      NULL,
                      NULL) != 1)
   {
-    rb_raise(rb_eRuntimeError, "invalid scalar provided to ecdh");
+    rb_raise(Secp256k1_Error_class, "invalid scalar provided to ecdh");
   }
 
   rb_iv_set(result, "@data", rb_str_new((char*)shared_secret->data, 32));
@@ -1510,6 +1540,17 @@ void Init_rbsecp256k1()
     "have_ecdh?",
     Secp256k1_have_ecdh,
     0
+  );
+
+  // Secp256k1 exception hierarchy
+  Secp256k1_Error_class = rb_define_class_under(
+    Secp256k1_module, "Error", rb_eStandardError
+  );
+  Secp256k1_SerializationError_class = rb_define_class_under(
+    Secp256k1_module, "SerializationError", Secp256k1_Error_class
+  );
+  Secp256k1_DeserializationError_class = rb_define_class_under(
+    Secp256k1_module, "DeserializationError", Secp256k1_Error_class
   );
 
   // Secp256k1::Context

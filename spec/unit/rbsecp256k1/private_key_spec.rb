@@ -33,7 +33,7 @@ RSpec.describe Secp256k1::PrivateKey do
     it 'raises an error if private key has wrong length' do
       expect do
         Secp256k1::PrivateKey.from_data('test')
-      end.to raise_error(ArgumentError, 'private key data must be 32 bytes in length')
+      end.to raise_error(Secp256k1::Error, 'private key data must be 32 bytes in length')
     end
 
     it 'raises an error if private key data is not string' do

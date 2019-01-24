@@ -36,7 +36,7 @@ RSpec.describe Secp256k1::PublicKey do
     it 'raises an error if public key is invalid' do
       expect do
         Secp256k1::PublicKey.from_data(Random.new.bytes(64))
-      end.to raise_error(RuntimeError, 'invalid public key data')
+      end.to raise_error(Secp256k1::DeserializationError, 'invalid public key data')
     end
 
     it 'raises an error if public key data is not string' do

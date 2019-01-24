@@ -11,7 +11,7 @@ Class Methods
 #### from_data(private_key_data)
 
 Loads new private key from the given binary `private_key_data` string. Raises
-`ArgumentError` if the given data is invalid.
+`Secp256k1::Error` if the given data is invalid.
 
 Instance Methods
 ----------------
