@@ -2,7 +2,7 @@ require 'spec_helper'
 
 if Secp256k1.have_recovery?
   RSpec.describe Secp256k1::RecoverableSignature do
-    let(:context) { Secp256k1::Context.new }
+    let(:context) { Secp256k1::Context.create }
     let(:key_pair) { context.generate_key_pair }
     let(:text_message) { sha256('more test stuff') }
 

@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe Secp256k1::KeyPair do
-  let(:context) { Secp256k1::Context.new }
+  let(:context) { Secp256k1::Context.create }
   let(:key_pair) { context.generate_key_pair }
 
   describe '#initialize' do

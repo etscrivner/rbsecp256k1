@@ -48,7 +48,7 @@ This example demonstrates how to create a new libsecp256k1 context. This is the
 first step of using this library:
 
 ```ruby
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 # => #<Secp256k1::Context:0x0000559b0bd8f5d0>
 ```
 
@@ -57,7 +57,7 @@ context = Secp256k1::Context.new
 This example shows how to generate a new public-private key pair:
 
 ```ruby
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 # => #<Secp256k1::KeyPair:0x0000559b0bc876b0 @public_key=#<Secp256k1::PublicKey:0x0000559b0bc876d8>, @private_key=#<Secp256k1::PrivateKey:0x0000559b0bc87700 @data="\r\xA7\xB3<\x92\xCDw\xC1\xDB\xEB[BB;=\x80\xB83\xA8]\x06\xD9\x90\xF8v\xFFi\xF0/\x1E\x96\xF9">>
 ```
@@ -67,7 +67,7 @@ key_pair = context.generate_key_pair
 This example shows how to generate compressed and uncompressed public keys:
 
 ```ruby
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 # 1. Get the binary representation of compressed public key
@@ -94,7 +94,7 @@ This example shows how to sign a message using your private key:
 ```ruby
 require 'digest'
 
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 signature = context.sign(key_pair.private_key, Digest::SHA256.digest("test message"))
@@ -109,7 +109,7 @@ representations of a signature:
 ```ruby
 require 'digest'
 
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 signature = context.sign(key_pair.private_key, Digest::SHA256.digest("test message"))
@@ -138,7 +138,7 @@ This example shows how to verify a signature using a public key:
 ```ruby
 require 'digest'
 
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 hash = Digest::SHA256.digest("test message")
 
@@ -158,7 +158,7 @@ context.verify(signature, key_pair.public_key, hash)
 This example shows how to load a key pair from raw binary private key data:
 
 ```ruby
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 
 #1. Load private key alone
 private_key = Secp256k1::PrivateKey.from_data("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
@@ -218,7 +218,7 @@ You can sign data producing a recoverable signature as follows:
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 signature = context.sign_recoverable(key_pair.private_key, hash)
@@ -233,7 +233,7 @@ You can produce the compact binary serialization of a recoverable signature:
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 signature = context.sign_recoverable(key_pair.private_key, hash)
@@ -247,7 +247,7 @@ You can load a recoverable signature give its compact representation and
 recovery ID:
 
 ```ruby
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 
 compact_data = "D,\x9C\xA6%I\x14-\xCA\xC0\x11\x0F\xEB\x1E\xB0\xB6\\-\xE2\b\x98\xFB\xEA\xD5\x9BZ\xE6\xDF#\xC1\x1A\xEEL\xF02\xB1\xE9{\r\xEBhh<\\\xCF\xB6\x98\xEA\x8F\xF65\xF2\xBF\x84\xD8\xE5x\xF0\xA5)\xA2Wb\x9D"
 recovery_id = 1
@@ -265,7 +265,7 @@ for use by all methods that take a [Signature](signature.md) object:
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 recoverable_signature = context.sign_recoverable(key_pair.private_key, hash)
@@ -281,7 +281,7 @@ You can recover the [PublicKey](public_key.md) associated with a recoverable sig
 require 'digest'
 
 hash = Digest::SHA256.digest('test message')
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 recoverable_signature = context.sign_recoverable(key_pair.private_key, hash)
@@ -310,7 +310,7 @@ Secp256k1.have_ecdh?
 To generate a shared secret run the following:
 
 ```ruby
-context = Secp256k1::Context.new
+context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
 
 shared_secret = context.ecdh(key_pair.public_key, key_pair.private_key)

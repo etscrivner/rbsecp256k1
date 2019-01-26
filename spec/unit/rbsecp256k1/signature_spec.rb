@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 RSpec.describe Secp256k1::Signature do
-  let(:context) { Secp256k1::Context.new }
+  let(:context) { Secp256k1::Context.create }
   let(:message) { 'this is a test' }
   let(:key_pair) { context.generate_key_pair }
   let(:signature) { context.sign(key_pair.private_key, sha256(message)) }

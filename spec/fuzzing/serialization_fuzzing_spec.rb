@@ -5,7 +5,7 @@ require 'spec_helper'
 # reproducible.
 
 RSpec.describe 'Fuzzing deserialization methods' do
-  let(:context) { Secp256k1::Context.new }
+  let(:context) { Secp256k1::Context.create }
   let(:seed) { RSpec.configuration.seed }
   let(:random) { Random.new(seed) }
 
@@ -28,34 +28,40 @@ RSpec.describe 'Fuzzing deserialization methods' do
   end
   # rubocop:enable Lint/HandleExceptions
 
+  it 'does not crash Context#initialize' do
+    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
+      Context.new(context_randomization_bytes: fuzzing_data)
+    end
+  end
+
   it 'does not crash Context#key_pair_from_private_key' do
-    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 100) do |fuzzing_data|
+    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
       context.key_pair_from_private_key(fuzzing_data)
     end
   end
 
   it 'does not crash Context#private_key_from_data' do
-    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 100) do |fuzzing_data|
+    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
       context.private_key_from_data(fuzzing_data)
     end
   end
 
   it 'does not crash Context#recoverable_signature_from_compact' do
     if Secp256k1.have_recovery?
-      fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 100) do |fuzzing_data|
+      fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
         context.recoverable_signature_from_compact(fuzzing_data, rand(1..3))
       end
     end
   end
 
   it 'does not crash Context#signature_from_der_encoded' do
-    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 100) do |fuzzing_data|
+    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
       context.signature_from_der_encoded(fuzzing_data)
     end
   end
 
   it 'does not crash Context#signature_from_compact' do
-    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 100) do |fuzzing_data|
+    fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
       context.signature_from_compact(fuzzing_data)
     end
   end
