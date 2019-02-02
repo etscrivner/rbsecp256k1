@@ -5,7 +5,8 @@
 Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/secp256k1). In rbsecp256k1 3.0.0
 and later libsecp256k1 is bundled with the gem.
 
-[Documentation](documentation/index.md)
+* [Documentation](documentation/index.md)
+* [Examples](examples/README.md)
 
 ### Why wrap libsecp256k1?
 

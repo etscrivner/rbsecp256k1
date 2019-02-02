@@ -7,5 +7,14 @@ Metrics/MethodLength:
 Metrics/BlockLength:
   Max: 1000
 
+Metrics/AbcSize:
+  Max: 20
+
+Naming/UncommunicativeMethodParamName:
+  Enabled: false
+
 Style/StringLiterals:
+  Enabled: false
+
+Style/IfUnlessModifier:
   Enabled: false
