@@ -3,6 +3,7 @@ Gemfile.lock
 
 # C
 *.o
+*.so
 
 # Emacs
 *~
