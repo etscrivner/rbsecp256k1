@@ -27,6 +27,7 @@ addons:
       - libssl-dev
       - libgmp-dev
       - python-dev
+      - libgmp10
 
 before_install:
   - gem update --system

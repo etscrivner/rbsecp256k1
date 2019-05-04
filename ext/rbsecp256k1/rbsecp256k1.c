@@ -6,8 +6,7 @@
 // and verifying signatures using the library.
 //
 // Dependencies:
-// * libsecp256k1
-// * openssl
+//   * libsecp256k1
 #include <ruby.h>
 #include <secp256k1.h>
 

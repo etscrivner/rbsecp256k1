@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Requires the following gems:
 #   * digest-sha3 (Keccak SHA3)
 #   * rbsecp256k1 (Wrapper around libsecp256k1)

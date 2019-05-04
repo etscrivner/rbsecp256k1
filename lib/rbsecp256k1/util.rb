@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Secp256k1
   # Contains utility methods that complement the functionality of the library.
   module Util

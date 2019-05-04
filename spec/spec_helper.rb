@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'rbsecp256k1'
 
 # Helpers
