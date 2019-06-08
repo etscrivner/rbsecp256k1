@@ -12,12 +12,12 @@ Class Methods
 #### from_compact(compact_signature)
 
 Parses a signature from binary string `compact_signature`. Raises a
-`RuntimeError` ig the signature data is invalid.
+`Secp256k1::DeserializationError` if the signature data is invalid.
 
 #### from_der_encoded(der_encoded_signature)
 
 Parses a signature from binary string `der_encoded_signature`. Raises a
-`RuntimeError` ig the signature data is invalid.
+`Secp256k1::DeserializationError` if the signature data is invalid.
 
 Instance Methods
 ----------------

@@ -7,8 +7,8 @@ Gem::Specification.new do |s|
   s.name    = 'rbsecp256k1'
   s.version = Secp256k1::VERSION
   s.summary =
-    'Compiled, native ruby extension interfaces to libsecp256k1. In rbsecp256k1 3.0.0 ' \
-    'and later libsecp256k1 is bundled with the gem.'
+    'Native extension for secp256k1 ECDSA. Wraps libsecp256k1. In ' \
+    'rbsecp256k1 3.0.0 and later libsecp256k1 is bundled with the gem.'
   s.license = 'MIT'
   s.authors = ['Eric Scrivner']
   s.homepage = 'https://github.com/etscrivner/rbsecp256k1'

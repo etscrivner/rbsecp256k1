@@ -12,13 +12,13 @@ RSpec.describe Secp256k1::Context do
     it 'raises an error if too few bytes are given' do
       expect do
         Secp256k1::Context.new(context_randomization_bytes: '1234')
-      end.to raise_error(ArgumentError, "context_randomization_bytes must be 32 bytes in length")
+      end.to raise_error(Secp256k1::Error, "context_randomization_bytes must be 32 bytes in length")
     end
 
     it 'raises an error if too many bytes are given' do
       expect do
         Secp256k1::Context.new(context_randomization_bytes: '1' * 33)
-      end.to raise_error(ArgumentError, "context_randomization_bytes must be 32 bytes in length")
+      end.to raise_error(Secp256k1::Error, "context_randomization_bytes must be 32 bytes in length")
     end
 
     it 'allows for 32 bytes of randomness' do
@@ -65,7 +65,7 @@ RSpec.describe Secp256k1::Context do
     it 'raises an error if private key data is invalid' do
       expect do
         subject.key_pair_from_private_key('abcdefghijklmnopqrstuvwxyzabcd')
-      end.to raise_error(ArgumentError, 'private key data must be 32 bytes in length')
+      end.to raise_error(Secp256k1::Error, 'private key data must be 32 bytes in length')
     end
 
     it 'raises an error if private key data is not string' do
@@ -100,7 +100,7 @@ RSpec.describe Secp256k1::Context do
     it 'raises an error if signature is not 32 bytes' do
       expect do
         subject.sign(key_pair.private_key, text_message)
-      end.to raise_error(ArgumentError)
+      end.to raise_error(Secp256k1::Error)
     end
   end
 
@@ -133,7 +133,7 @@ RSpec.describe Secp256k1::Context do
 
       expect do
         subject.verify(signature, bad_key_pair.public_key, message)
-      end.to raise_error(ArgumentError)
+      end.to raise_error(Secp256k1::Error)
     end
   end
 
@@ -163,7 +163,7 @@ RSpec.describe Secp256k1::Context do
       it 'raises an error if hash is the wrong length' do
         expect do
           subject.sign_recoverable(subject, text_message)
-        end.to raise_error(ArgumentError)
+        end.to raise_error(Secp256k1::Error)
       end
     end
 
@@ -183,7 +183,7 @@ RSpec.describe Secp256k1::Context do
       it 'raises an error if compact signature is not the right size' do
         expect do
           subject.recoverable_signature_from_compact('test', 1)
-        end.to raise_error(ArgumentError, 'compact signature is not 64 bytes')
+        end.to raise_error(Secp256k1::Error, 'compact signature is not 64 bytes')
       end
 
       it 'raises an error if compact signature data is not string' do
@@ -198,7 +198,7 @@ RSpec.describe Secp256k1::Context do
 
         expect do
           subject.recoverable_signature_from_compact(compact, -1)
-        end.to raise_error(ArgumentError, /invalid recovery ID/)
+        end.to raise_error(Secp256k1::Error, /invalid recovery ID/)
       end
 
       it 'raises an error if recovery id is > 3' do
@@ -207,7 +207,7 @@ RSpec.describe Secp256k1::Context do
 
         expect do
           subject.recoverable_signature_from_compact(compact, 4)
-        end.to raise_error(ArgumentError, /invalid recovery ID/)
+        end.to raise_error(Secp256k1::Error, /invalid recovery ID/)
       end
     end
   end

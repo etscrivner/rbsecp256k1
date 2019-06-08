@@ -38,7 +38,7 @@ Instance Methods
 **Requires:** libsecp256k1 was built with the experimental ECDH module.
 
 Takes a `point` ([PublicKey](public_key.md)) and a `scalar` ([PrivateKey](private_key.md)) and returns a new
-[SharedSecret](shared_secret.md) containing the 32-byte shared secret. Raises a `RuntimeError` if
+[SharedSecret](shared_secret.md) containing the 32-byte shared secret. Raises a `Secp256k1::Error` if
 the `scalar` is invalid (zero or causes an overflow).
 
 #### generate_key_pair
@@ -49,7 +49,7 @@ secure random number generator (CSRNG) provided by OpenSSL.
 #### key_pair_from_private_key(private_key_data)
 
 Returns a new [KeyPair](key_pair.md) from the given `private_key_data`. The
-`private_key_data` is expected to be a binary string. Raises a `RuntimeError`
+`private_key_data` is expected to be a binary string. Raises a `Secp256k1::Error`
 if the private key is invalid or key derivation fails.
 
 #### recoverable_signature_from_compact(compact_signature, recovery_id)
@@ -57,7 +57,7 @@ if the private key is invalid or key derivation fails.
 **Requires:** libsecp256k1 was build with recovery module.
 
 Attempts to load a [RecoverableSignature](recoverable_signature.md) from the given `compact_signature`
-and `recovery_id`. Raises a RuntimeError if the signature data or recovery ID are invalid.
+and `recovery_id`. Raises a `Secp256k1::DeserializationError` if the signature data or recovery ID are invalid.
 
 #### sign(private_key, hash32)
 
