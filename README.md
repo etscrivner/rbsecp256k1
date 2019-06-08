@@ -2,8 +2,8 @@
 
 [![Build Status](https://travis-ci.com/etscrivner/rbsecp256k1.svg?branch=master)](https://travis-ci.com/etscrivner/rbsecp256k1) [![Gem Version](https://badge.fury.io/rb/rbsecp256k1.svg)](https://badge.fury.io/rb/rbsecp256k1)
 
-Compiled Ruby extension gem for [libsecp256k1](https://github.com/bitcoin-core/secp256k1). In rbsecp256k1 3.0.0
-and later libsecp256k1 is bundled with the gem.
+Native extension gem for secp256k1 ECDSA. Wraps [libsecp256k1](https://github.com/bitcoin-core/secp256k1). In
+rbsecp256k1 3.0.0 and later libsecp256k1 is bundled with the gem.
 
 * [Documentation](documentation/index.md)
 * [Examples](examples/README.md)
@@ -16,6 +16,9 @@ own set of benchmarks, but from [benchmarking done by Peter Wuille](https://www.
 faster than the OpenSSL implementation of the same curve. It is the only library
 that provides constant time signing of this curve and has been deployed as part
 of Bitcoin since [v0.10.0](https://bitcoin.org/en/release/v0.10.0#improved-signing-security)
+
+Natively wrapping the library in an extension gem means users don't have to
+worry about compiling or locating the library, unlike many [FFI](https://github.com/ffi/ffi) based gems.
 
 ## Installation
 
