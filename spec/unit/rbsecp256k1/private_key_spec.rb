@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 RSpec.describe Secp256k1::PrivateKey do

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'mini_portile2'
 require 'mkmf'
 require 'zip'
@@ -5,10 +7,10 @@ require 'zip'
 # Recipe for downloading and building libsecp256k1 as part of installation
 class Secp256k1Recipe < MiniPortile
   # Hard-coded URL for libsecp256k1 zipfile (HEAD of master as of 26-11-2018)
-  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/e34ceb333b1c0e6f4115ecbb80c632ac1042fa49.zip'.freeze
+  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/e34ceb333b1c0e6f4115ecbb80c632ac1042fa49.zip'
 
   # Expected SHA-256 of the zipfile above (computed using sha256sum)
-  LIBSECP256K1_SHA256 = 'd87d3ca7ebc42edbabb0f38e79205040b24b09b3e6d1c9ac89585de9bf302143'.freeze
+  LIBSECP256K1_SHA256 = 'd87d3ca7ebc42edbabb0f38e79205040b24b09b3e6d1c9ac89585de9bf302143'
 
   WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
   WITH_ECDH = ENV.fetch('WITH_ECDH', '1') == '1'
@@ -87,6 +89,11 @@ else
       "-fPIC",
       "-Wno-undef",
       "-Wall"
+    ]
+  )
+  append_ldflags(
+    [
+      "-Wl,--no-as-needed"
     ]
   )
   # rubocop:disable Style/GlobalVars

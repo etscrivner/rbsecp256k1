@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 # Fuzzing tests check deserialization methods against randomly generated data.

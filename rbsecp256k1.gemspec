@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 $LOAD_PATH.push(File.expand_path('lib', __dir__))
 require 'rbsecp256k1/version'
 
@@ -29,6 +31,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'rake', '~> 12.3'
   s.add_development_dependency 'rake-compiler', '~> 1.0'
   s.add_development_dependency 'rspec', '~> 3.8'
-  s.add_development_dependency 'rubocop', '~> 0.61'
+  s.add_development_dependency 'rubocop', '~> 0.7'
   s.add_development_dependency 'yard', '~> 0.9'
 end

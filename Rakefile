@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "rake/extensiontask"
 
 Rake::ExtensionTask.new "rbsecp256k1" do |ext|
