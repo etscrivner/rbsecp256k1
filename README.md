@@ -112,6 +112,12 @@ To test with both disabled run:
 make test WITH_RECOVERY=0 WITH_ECDH=0
 ```
 
+Testing for memory leaks with valgrind:
+
+```
+make memcheck
+```
+
 ### Building Gem
 
 ```
