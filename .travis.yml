@@ -9,6 +9,9 @@ os:
   - "linux"
   - "osx"
 
+services:
+  - "docker"
+
 # WITH_RECOVERY and WITH_ECDH are 1 by default. Test all variants where they
 # are 0.
 env:
@@ -28,6 +31,7 @@ addons:
       - libgmp-dev
       - python-dev
       - libgmp10
+      - valgrind
 
 before_install:
   - gem update --system
@@ -40,3 +44,4 @@ script:
   - make build
   - make lint
   - make test
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then make memcheck ; fi
