@@ -5,8 +5,8 @@
 Native extension gem for secp256k1 ECDSA. Wraps [libsecp256k1](https://github.com/bitcoin-core/secp256k1). In
 rbsecp256k1 3.0.0 and later libsecp256k1 is bundled with the gem.
 
-* [Documentation](documentation/index.md)
-* [Examples](examples/README.md)
+* [Documentation](https://github.com/etscrivner/rbsecp256k1/blob/master/documentation/index.md)
+* [Examples](https://github.com/etscrivner/rbsecp256k1/blob/master/examples/README.md)
 
 ### Why wrap libsecp256k1?
 
@@ -59,7 +59,7 @@ brew install openssl libtool pkg-config gmp libffi
 
 ## Features
 
-See [rbsecp256k1 documentation](documentation/index.md) for examples and complete list of supported functionality.
+See [rbsecp256k1 documentation](https://github.com/etscrivner/rbsecp256k1/blob/master/documentation/index.md) for examples and complete list of supported functionality.
 
 ## Development
 
