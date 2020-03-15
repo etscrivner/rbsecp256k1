@@ -38,6 +38,7 @@ class Secp256k1Recipe < MiniPortile
       # Windows doesn't recognize the shebang.
       execute('autogen', %w[sh ./autogen.sh])
     else
+      execute('chmod', %w[chmod +x ./autogen.sh])
       execute('autogen', %w[./autogen.sh])
     end
 
