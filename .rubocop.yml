@@ -10,7 +10,7 @@ Metrics/BlockLength:
 Metrics/AbcSize:
   Max: 20
 
-Naming/UncommunicativeMethodParamName:
+Naming/MethodParameterName:
   Enabled: false
 
 Style/StringLiterals:

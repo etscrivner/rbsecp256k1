@@ -20,7 +20,7 @@ RSpec.describe 'Fuzzing deserialization methods' do
     random.bytes(num_bytes)
   end
 
-  # rubocop:disable Lint/HandleExceptions
+  # rubocop:disable Lint/SuppressedException
   def fuzz_random_binary_data(iterations, min_bytes:, max_bytes:, &_block)
     iterations.times do
       yield random_binary_data(min_bytes, max_bytes)
@@ -28,7 +28,7 @@ RSpec.describe 'Fuzzing deserialization methods' do
   rescue StandardError
     # Ignore errors, we're looking for crashes
   end
-  # rubocop:enable Lint/HandleExceptions
+  # rubocop:enable Lint/SuppressedException
 
   it 'does not crash Context#initialize' do
     fuzz_random_binary_data(10_000, min_bytes: 0, max_bytes: 1000) do |fuzzing_data|
