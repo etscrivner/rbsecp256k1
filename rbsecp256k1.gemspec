@@ -25,12 +25,12 @@ Gem::Specification.new do |s|
   # Dependencies required to build and run this gem
   s.add_dependency 'mini_portile2', '~> 2.4'
   s.add_dependency 'pkg-config', '~> 1.3'
-  s.add_dependency 'rubyzip', '~> 1.2'
+  s.add_dependency 'rubyzip', '~> 2.0'
 
   # Development dependencies
   s.add_development_dependency 'rake', '~> 12.3'
   s.add_development_dependency 'rake-compiler', '~> 1.0'
   s.add_development_dependency 'rspec', '~> 3.8'
-  s.add_development_dependency 'rubocop', '~> 0.7'
+  s.add_development_dependency 'rubocop', '~> 0.78'
   s.add_development_dependency 'yard', '~> 0.9'
 end
