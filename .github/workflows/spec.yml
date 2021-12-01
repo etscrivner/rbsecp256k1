@@ -31,7 +31,7 @@ jobs:
     - name: Homebrew dependencies (macOS)
       run: |
         brew update
-        brew install libtool pkg-config gmp libffi
+        brew install automake libtool pkg-config gmp libffi
       if: startsWith(matrix.os, 'macOS')
     - name: Install Dependencies
       run: |
