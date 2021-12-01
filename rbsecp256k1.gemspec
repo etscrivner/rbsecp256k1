@@ -23,13 +23,13 @@ Gem::Specification.new do |s|
   s.extensions = ['ext/rbsecp256k1/extconf.rb']
 
   # Dependencies required to build and run this gem
-  s.add_dependency 'mini_portile2', '~> 2.4'
-  s.add_dependency 'pkg-config', '~> 1.3'
-  s.add_dependency 'rubyzip', '~> 2.0'
+  s.add_dependency 'mini_portile2', '~> 2.7'
+  s.add_dependency 'pkg-config', '~> 1.4'
+  s.add_dependency 'rubyzip', '~> 2.3'
 
   # Development dependencies
-  s.add_development_dependency 'rake', '~> 12.3'
-  s.add_development_dependency 'rake-compiler', '~> 1.0'
+  s.add_development_dependency 'rake', '~> 13.0'
+  s.add_development_dependency 'rake-compiler', '~> 1.1'
   s.add_development_dependency 'rspec', '~> 3.8'
   s.add_development_dependency 'rubocop', '0.78'
   s.add_development_dependency 'yard', '~> 0.9'
