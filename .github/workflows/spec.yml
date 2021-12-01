@@ -27,7 +27,7 @@ jobs:
       run: |
         sudo apt update
         sudo apt install  build-essential automake pkg-config libtool libffi-dev libssl-dev libgmp-dev python-dev libgmp10 valgrind
-      if: startsWith(matrix.os, 'macOS')
+      if: startsWith(matrix.os, 'Ubuntu')
     - name: Homebrew dependencies (macOS)
       run: |
         brew update
