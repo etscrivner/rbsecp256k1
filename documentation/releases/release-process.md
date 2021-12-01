@@ -14,7 +14,7 @@ Release Process
 First you'll need to checkout a new branch and add release notes:
 
 ```
-git checkout release-${VERSION}
+git checkout -b release-${VERSION}
 git add documentation/releases/release-notes/release-notes-${VERSION}.md
 ```
 
