@@ -6,11 +6,11 @@ require 'zip'
 
 # Recipe for downloading and building libsecp256k1 as part of installation
 class Secp256k1Recipe < MiniPortile
-  # Hard-coded URL for libsecp256k1 zipfile (HEAD of master as of 26-11-2018)
-  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/e34ceb333b1c0e6f4115ecbb80c632ac1042fa49.zip'
+  # Hard-coded URL for libsecp256k1 zipfile (HEAD of master as of 24-11-2021)
+  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/fecf436d5327717801da84beb3066f5a9b80ea8e.zip'
 
   # Expected SHA-256 of the zipfile above (computed using sha256sum)
-  LIBSECP256K1_SHA256 = 'd87d3ca7ebc42edbabb0f38e79205040b24b09b3e6d1c9ac89585de9bf302143'
+  LIBSECP256K1_SHA256 = '188c6252ab9e829da02c962fe59a329f798c615577ac128ae1f0697126ebb2fc'
 
   WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
   WITH_ECDH = ENV.fetch('WITH_ECDH', '1') == '1'
