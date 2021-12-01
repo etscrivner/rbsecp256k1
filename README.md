@@ -54,7 +54,7 @@ you have run `ldconfig` so that your library load paths have been updated.
 Dependencies for building libsecp256k1 and this library:
 
 ```
-brew install openssl libtool pkg-config gmp libffi
+brew install automake openssl libtool pkg-config gmp libffi
 ```
 
 ## Features
