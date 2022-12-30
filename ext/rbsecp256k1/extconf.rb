@@ -89,7 +89,8 @@ else
       "-I#{recipe.path}/include",
       "-fPIC",
       "-Wno-undef",
-      "-Wall"
+      "-Wall",
+      "-gdwarf-4"
     ]
   )
   append_ldflags(
