@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        ruby: ['2.7', '3.0']
+        ruby: ['2.7', '3.0', '3.1', '3.2']
     steps:
     - uses: actions/checkout@v2
     - uses: ruby/setup-ruby@v1
@@ -26,7 +26,7 @@ jobs:
     - name: APT dependencies (Ubuntu)
       run: |
         sudo apt update
-        sudo apt install  build-essential automake pkg-config libtool libffi-dev libssl-dev libgmp-dev python-dev libgmp10 valgrind
+        sudo apt install  build-essential automake pkg-config libtool libffi-dev libssl-dev libgmp-dev python3-dev libgmp10 valgrind
       if: startsWith(matrix.os, 'Ubuntu')
     - name: Homebrew dependencies (macOS)
       run: |

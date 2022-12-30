@@ -43,7 +43,7 @@ Install the dependencies for building libsecp256k1 and this library:
 
 ```
 sudo apt-get install build-essential automake pkg-config libtool \
-  libffi-dev libssl-dev libgmp-dev python-dev
+  libffi-dev libssl-dev libgmp-dev python3-dev
 ```
 
 **NOTE:** If you have installed libsecp256k1 but the gem cannot find it. Ensure
