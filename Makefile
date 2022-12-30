@@ -24,7 +24,7 @@ lint:
 	bundle exec rubocop
 
 memcheck: build
-	valgrind --trace-children=yes --num-callers=50 --error-limit=no --partial-loads-ok=yes --undef-value-errors=no --error-exitcode=42 --gen-suppressions=all --max-stackframe=8382656 bundle exec rspec
+	rake spec:valgrind
 
 memcheck-docker: docker
 	docker run rbsecp256k1 /bin/sh -c "make memcheck"
@@ -33,7 +33,7 @@ setup:
 	bundle install
 
 test: build
-	bundle exec rspec
+	rake spec
 
 uninstall:
 	gem uninstall rbsecp256k1
