@@ -44,4 +44,4 @@ jobs:
     - name: Memcheck (Ubuntu)
       run: |
         make memcheck
-      if: startsWith(matrix.os, 'Ubuntu')
+      if: startsWith(matrix.os, 'Ubuntu') && matrix.ruby != '3.2'
