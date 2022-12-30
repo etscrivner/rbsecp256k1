@@ -7,8 +7,9 @@ require 'ruby_memcheck/rspec/rake_task'
 
 RubyMemcheck.config(binary_name: "rbsecp256k1")
 
+# See: https://guides.rubygems.org/gems-with-extensions/
 Rake::ExtensionTask.new "rbsecp256k1" do |ext|
-  ext.lib_dir = "lib/rbsecp256k1"
+  ext.lib_dir = 'lib/rbsecp256k1'
 end
 
 RSpec::Core::RakeTask.new(:spec)
