@@ -112,4 +112,5 @@ have_header('secp256k1_recovery.h')
 # Check if we have EC Diffie-Hellman functionality
 have_header('secp256k1_ecdh.h')
 
-create_makefile('rbsecp256k1')
+# See: https://guides.rubygems.org/gems-with-extensions/
+create_makefile('rbsecp256k1/rbsecp256k1')
