@@ -1525,7 +1525,7 @@ Secp256k1_have_ecdh(VALUE module)
 // Library initialization
 //
 
-void Init_rbsecp256k1()
+void Init_rbsecp256k1(void)
 {
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
