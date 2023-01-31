@@ -35,16 +35,16 @@ Instance Methods
 
 #### ecdh(point, scalar)
 
-**Requires:** libsecp256k1 was built with the experimental ECDH module.
-
 Takes a `point` ([PublicKey](public_key.md)) and a `scalar` ([PrivateKey](private_key.md)) and returns a new
 [SharedSecret](shared_secret.md) containing the 32-byte shared secret. Raises a `Secp256k1::Error` if
 the `scalar` is invalid (zero or causes an overflow).
 
 #### generate_key_pair
 
-Generates and returns a new [KeyPair](key_pair.md) using a cryptographically
-secure random number generator (CSRNG) provided by OpenSSL.
+Generates and returns a new [KeyPair](key_pair.md) using Ruby's built-in
+`SecureRandom` cryptographically secure random number generator. This method
+simply invokes `key_pair_from_private_key` with the value from
+`SecureRandom.random_bytes`.
 
 #### key_pair_from_private_key(private_key_data)
 

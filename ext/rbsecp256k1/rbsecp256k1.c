@@ -7,18 +7,28 @@
 //
 // Dependencies:
 //   * libsecp256k1
+
+// Sanity check that we have the basic header files we expect.
+#if !defined(HAVE_SECP256K1_H)
+  #error missing secp256k1.h during build
+#endif // !defined(HAVE_SECP256K1_H)
+
 #include <ruby.h>
 #include <secp256k1.h>
 
-// Include recoverable signatures functionality if available
+// Check for optional sub-modules. As a rule any secp256k1 submodule is
+// optional and so should be blocked off using these ifdefs.
 #ifdef HAVE_SECP256K1_RECOVERY_H
 #include <secp256k1_recovery.h>
 #endif // HAVE_SECP256K1_RECOVERY_H
 
-// Include EC Diffie-Hellman functionality
 #ifdef HAVE_SECP256K1_ECDH_H
 #include <secp256k1_ecdh.h>
 #endif // HAVE_SECP256K1_ECDH_H
+
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+#include <secp256k1_schnorrsig.h>
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
 
 // High-level design:
 //
@@ -29,12 +39,12 @@
 // |--  KeyPair
 // |--  PublicKey
 // |--  PrivateKey
-// |--  RecoverableSignature
-// |--  SharedSecret
+// |--  RecoverableSignature (recovery module)
+// |--  SharedSecret (ecdh module)
 // |--  Signature
 //
 // The Context class contains most of the methods that invoke libsecp256k1.
-// The KayPair, PublicKey, PrivateKey, RecoverableSignature, SharedSecret, and
+// The KeyPair, PublicKey, PrivateKey, RecoverableSignature, SharedSecret, and
 // Signature objects act as data objects and are passed to various
 // methods. Contexts are thread safe and can be used across
 // applications. Context initialization is expensive so it is recommended that

@@ -100,32 +100,6 @@ To test with recovery functionality disabled run:
 make test WITH_RECOVERY=0
 ```
 
-To test with both disabled run:
-
-```
-make test WITH_RECOVERY=0
-```
-
-Testing for memory leaks with valgrind:
-
-```
-make memcheck
-```
-
-### Building Gem
-
-```
-make gem
-```
-
-### Installing Gem Locally
-
-To install the gem locally and verify builds you can run:
-
-```
-make install
-```
-
 ### Uninstall Gem Locally
 
 You can similarly uninstall the local gem by running the following:
