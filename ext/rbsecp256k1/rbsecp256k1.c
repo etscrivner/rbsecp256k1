@@ -1484,6 +1484,37 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
 }
 
 /**
+ * Computes the tagged hash as defined in BIP-340.
+ *
+ * @param in_tag [String] tag value included in the hash.
+ * @param in_message [String] message to be hashed.
+ * @return [String] 32-byte binary hash.
+ */
+static VALUE
+Context_tagged_sha256(VALUE self, VALUE in_tag, VALUE in_message)
+{
+  Context *context;
+  unsigned char* tag;
+  unsigned char* msg;
+  unsigned char hash32[32];
+
+  Check_Type(in_tag, T_STRING);
+  Check_Type(in_message, T_STRING);
+
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+
+  tag = (unsigned char*)StringValuePtr(in_tag);
+  msg = (unsigned char*)StringValuePtr(in_message);
+
+  if (secp256k1_tagged_sha256(context->ctx, hash32, tag, RSTRING_LEN(in_tag), msg, RSTRING_LEN(in_message)) != 1)
+  {
+    rb_raise(Secp256k1_Error_class, "failed to compute tagged SHA256");
+  }
+
+  return rb_str_new((char*)hash32, 32);
+}
+
+/**
  * Verifies that signature matches public key and data.
  *
  * @param in_signature [Secp256k1::Signature] signature to be verified.
@@ -1779,6 +1810,10 @@ void Init_rbsecp256k1(void)
   rb_define_method(Secp256k1_Context_class,
                    "sign",
                    Context_sign,
+                   2);
+  rb_define_method(Secp256k1_Context_class,
+                   "tagged_sha256",
+                   Context_tagged_sha256,
                    2);
   rb_define_method(Secp256k1_Context_class,
                    "verify",
