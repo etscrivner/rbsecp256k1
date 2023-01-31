@@ -22,6 +22,13 @@ RSpec.describe Secp256k1::PublicKey do
     end
   end
 
+  describe '#to_xonly' do
+    it 'returns an x-only public key' do
+      xonly = key_pair.public_key.to_xonly
+      expect(xonly).to be_a(Secp256k1::XOnlyPublicKey)
+    end
+  end
+
   describe '.from_data' do
     it 'loads compressed public key' do
       public_key = Secp256k1::PublicKey.from_data(key_pair.public_key.compressed)

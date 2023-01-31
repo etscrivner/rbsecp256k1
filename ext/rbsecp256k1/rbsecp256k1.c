@@ -48,6 +48,7 @@
 // |--  Context
 // |--  KeyPair
 // |--  PublicKey
+// |--  XOnlyPublicKey
 // |--  PrivateKey
 // |--  RecoverableSignature (recovery module)
 // |--  SharedSecret (ecdh module)
@@ -78,6 +79,8 @@
 const size_t UNCOMPRESSED_PUBKEY_SIZE_BYTES = 65;
 // Size of a compressed public key
 const size_t COMPRESSED_PUBKEY_SIZE_BYTES = 33;
+// Size of a serialized x-only public key
+const size_t SERIALIZED_XONLY_PUBKEY_SIZE_BYTES = 32;
 // Size of a compact signature in bytes
 const size_t COMPACT_SIG_SIZE_BYTES = 64;
 
@@ -93,6 +96,7 @@ static VALUE Secp256k1_KeyPair_class;
 static VALUE Secp256k1_PublicKey_class;
 static VALUE Secp256k1_PrivateKey_class;
 static VALUE Secp256k1_Signature_class;
+static VALUE Secp256k1_XOnlyPublicKey_class;
 
 #ifdef HAVE_SECP256K1_RECOVERY_H
 static VALUE Secp256k1_RecoverableSignature_class;
@@ -118,6 +122,10 @@ typedef struct PublicKey_dummy {
 typedef struct PrivateKey_dummy {
   unsigned char data[32]; // Bytes comprising the private key data
 } PrivateKey;
+
+typedef struct XOnlyPublicKey_dummy {
+  secp256k1_xonly_pubkey pubkey; // Opaque object representing an x-only pubkey.
+} XOnlyPublicKey;
 
 typedef struct Signature_dummy {
   secp256k1_ecdsa_signature sig; // Signature object, contains 64-byte signature
@@ -169,6 +177,22 @@ PublicKey_free(void *in_public_key)
 static const rb_data_type_t PublicKey_DataType = {
   "PublicKey",
   { 0, PublicKey_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+// XOnlyPublicKey
+static void
+XOnlyPublicKey_free(void* in_xonly_pubkey)
+{
+  XOnlyPublicKey *xonly_pubkey;
+  xonly_pubkey = (XOnlyPublicKey*)in_xonly_pubkey;
+  xfree(xonly_pubkey);
+}
+
+static const rb_data_type_t XOnlyPublicKey_DataType = {
+  "XOnlyPublicKey",
+  { 0, XOnlyPublicKey_free, 0 },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -358,6 +382,108 @@ RecoverableSignData(secp256k1_context *in_context,
 #endif // HAVE_SECP256K1_RECOVERY_H
 
 //
+// Secp256k1::XOnlyPublicKey class interface
+//
+
+static VALUE
+XOnlyPublicKey_alloc(VALUE klass)
+{
+  VALUE result;
+  XOnlyPublicKey* xonly_pubkey;
+
+  xonly_pubkey = ALLOC(XOnlyPublicKey);
+  MEMZERO(xonly_pubkey, XOnlyPublicKey, 1);
+  result = TypedData_Wrap_Struct(klass, &XOnlyPublicKey_DataType, xonly_pubkey);
+
+  return result;
+}
+
+static VALUE
+XOnlyPublicKey_create_from_data(unsigned char *in_xonly_pubkey32)
+{
+  XOnlyPublicKey *xonly_pubkey;
+  VALUE result;
+
+  result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
+  TypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+
+  if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_pubkey->pubkey, in_xonly_pubkey32) != 1)
+  {
+    rb_raise(Secp256k1_DeserializationError_class, "invalid x-only public key data");
+  }
+
+  return result;
+}
+
+/**
+ * Loads an x-only public key from serialized data.
+ *
+ * @param in_xonly_public_key_serialized [String] binary string with serialized
+ * data.
+ * @return [Secp256k1::XOnlyPublicKey] x-only public key derived from data.
+ * @raise [Secp256k1::DeserializationError] if x-only public key data is invalid
+ */
+static VALUE
+XOnlyPublicKey_from_data(VALUE klass, VALUE in_xonly_public_key_serialized)
+{
+  unsigned char *xonly_pubkey_data;
+
+  Check_Type(in_xonly_public_key_serialized, T_STRING);
+  if (RSTRING_LEN(in_xonly_public_key_serialized) != 32)
+  {
+    rb_raise(Secp256k1_DeserializationError_class, "x-only public key data must be 32 bytes in length");
+  }
+
+  xonly_pubkey_data = (unsigned char*)StringValuePtr(in_xonly_public_key_serialized);
+  return XOnlyPublicKey_create_from_data(xonly_pubkey_data);
+}
+
+/**
+ * Returns the 32-byte serialized version of this x-only public key.
+ *
+ * @return [String] 32-byte binary string containing serialized x-only public
+ * key.
+ */
+static VALUE
+XOnlyPublicKey_serialized(VALUE self)
+{
+  XOnlyPublicKey* xonly_pubkey;
+  unsigned char out[SERIALIZED_XONLY_PUBKEY_SIZE_BYTES];
+
+  TypedData_Get_Struct(self, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+
+  if (secp256k1_xonly_pubkey_serialize(secp256k1_context_static, out, &xonly_pubkey->pubkey) != 1)
+  {
+    rb_raise(Secp256k1_SerializationError_class, "failed to serialize x-only public key");
+  }
+
+  return rb_str_new((char*)out, SERIALIZED_XONLY_PUBKEY_SIZE_BYTES);
+}
+
+/**
+ * Compare two x-only public keys.
+ *
+ * @param other [Secp256k1::XOnlyPublicKey] x-only public key to compare.
+ * @return [Boolean] true if they are equal, false otherwise.
+ */
+static VALUE
+XOnlyPublicKey_equals(VALUE self, VALUE other)
+{
+  XOnlyPublicKey *lhs;
+  XOnlyPublicKey *rhs;
+
+  TypedData_Get_Struct(self, XOnlyPublicKey, &XOnlyPublicKey_DataType, lhs);
+  TypedData_Get_Struct(other, XOnlyPublicKey, &XOnlyPublicKey_DataType, rhs);
+
+  if (secp256k1_xonly_pubkey_cmp(secp256k1_context_static, &lhs->pubkey, &rhs->pubkey) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
+}
+
+//
 // Secp256k1::PublicKey class interface
 //
 
@@ -461,6 +587,34 @@ PublicKey_compressed(VALUE self)
                                 SECP256K1_EC_COMPRESSED);
 
   return rb_str_new((char*)serialized_pubkey, serialized_pubkey_len);
+}
+
+/**
+ * Returns the x-only public key equivalent of this public key.
+ *
+ * @return [Secp256k1::XOnlyPublicKey] x-only public key
+ */
+static VALUE
+PublicKey_to_xonly(VALUE self)
+{
+  PublicKey *public_key;
+  XOnlyPublicKey *xonly_pubkey;
+  VALUE result;
+
+  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+
+  result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
+  TypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+
+  if (secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static,
+                                         &xonly_pubkey->pubkey,
+                                         NULL,
+                                         &public_key->pubkey) != 1)
+  {
+    rb_raise(Secp256k1_Error_class, "failed to convert pubkey to x-only pubkey");
+  }
+
+  return result;
 }
 
 /**
@@ -1629,6 +1783,10 @@ void Init_rbsecp256k1(void)
                    "uncompressed",
                    PublicKey_uncompressed,
                    0);
+  rb_define_method(Secp256k1_PublicKey_class,
+                   "to_xonly",
+                   PublicKey_to_xonly,
+                   0);
   rb_define_singleton_method(
     Secp256k1_PublicKey_class,
     "from_data",
@@ -1636,6 +1794,24 @@ void Init_rbsecp256k1(void)
     1
   );
   rb_define_method(Secp256k1_PublicKey_class, "==", PublicKey_equals, 1);
+
+  // Secp256k1::XOnlyPublicKey
+  Secp256k1_XOnlyPublicKey_class = rb_define_class_under(Secp256k1_module,
+                                                         "XOnlyPublicKey",
+                                                         rb_cObject);
+
+  rb_undef_alloc_func(Secp256k1_XOnlyPublicKey_class);
+  rb_define_alloc_func(Secp256k1_XOnlyPublicKey_class, XOnlyPublicKey_alloc);
+  rb_define_method(Secp256k1_XOnlyPublicKey_class,
+                   "serialized",
+                   XOnlyPublicKey_serialized,
+                   0);
+  rb_define_singleton_method(
+    Secp256k1_XOnlyPublicKey_class,
+    "from_data",
+    XOnlyPublicKey_from_data,
+    1);
+  rb_define_method(Secp256k1_XOnlyPublicKey_class, "==", XOnlyPublicKey_equals, 1);
 
   // Secp256k1::PrivateKey
   Secp256k1_PrivateKey_class = rb_define_class_under(
