@@ -6,30 +6,25 @@ require 'zip'
 
 # Recipe for downloading and building libsecp256k1 as part of installation
 class Secp256k1Recipe < MiniPortile
-  # Hard-coded URL for libsecp256k1 zipfile (HEAD of master as of 24-11-2021)
-  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/fecf436d5327717801da84beb3066f5a9b80ea8e.zip'
+  # Hard-coded URL for libsecp256k1 zipfile (Official release v0.2.0)
+  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/refs/tags/v0.2.0.zip'
 
   # Expected SHA-256 of the zipfile above (computed using sha256sum)
-  LIBSECP256K1_SHA256 = '188c6252ab9e829da02c962fe59a329f798c615577ac128ae1f0697126ebb2fc'
+  LIBSECP256K1_SHA256 = '6ece280c0e6ea9d861051077c28a25b7f48800c43a4098a800b7d3b0c124e406'
 
   WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
-  WITH_ECDH = ENV.fetch('WITH_ECDH', '1') == '1'
 
   def initialize
-    super('libsecp256k1', '0.0.0')
+    super('libsecp256k1', '0.2.0')
     @tarball = File.join(Dir.pwd, "/ports/archives/libsecp256k1.zip")
     @files = ["file://#{@tarball}"]
     self.configure_options += [
-      "--disable-benchmark",
-      "--disable-exhaustive-tests",
-      "--disable-tests",
-      "--disable-debug",
-      "--enable-experimental",
       "--with-pic=yes"
     ]
 
+    # ECDH is enabled by default in release v0.2.0, but recovery still needs to
+    # be enabled manually.
     configure_options << "--enable-module-recovery" if WITH_RECOVERY
-    configure_options << "--enable-module-ecdh" if WITH_ECDH
   end
 
   def configure
@@ -106,11 +101,20 @@ else
   have_library("gmp")
 end
 
+# Check for the basic header
+have_header('secp256k1.h')
+
 # Check if we have the libsecp256k1 recoverable signature header.
 have_header('secp256k1_recovery.h')
 
 # Check if we have EC Diffie-Hellman functionality
 have_header('secp256k1_ecdh.h')
+
+# Check if we have Schnorr signatures
+have_header('secp256k1_schnorrsig.h')
+
+# Check if we have extra keys module
+have_header('secp256k1_extrakeys.h')
 
 # See: https://guides.rubygems.org/gems-with-extensions/
 create_makefile('rbsecp256k1/rbsecp256k1')
