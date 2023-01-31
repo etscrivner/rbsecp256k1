@@ -28,11 +28,11 @@ Gem::Specification.new do |s|
   s.add_dependency 'rubyzip', '~> 2.3'
 
   # Development dependencies
+  s.add_development_dependency 'keccak', '~> 1.3'
   s.add_development_dependency 'rake', '~> 13.0'
   s.add_development_dependency 'rake-compiler', '~> 1.2'
   s.add_development_dependency 'rspec', '~> 3.8'
   s.add_development_dependency 'rubocop', '0.78'
   s.add_development_dependency 'ruby_memcheck', '~> 1.2'
   s.add_development_dependency 'yard', '~> 0.9'
-  s.add_development_dependency 'keccak', '~> 1.3'
 end
