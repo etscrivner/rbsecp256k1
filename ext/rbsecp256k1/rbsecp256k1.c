@@ -9,9 +9,9 @@
 //   * libsecp256k1
 
 // Sanity check that we have the basic header files we expect.
-#if !defined(HAVE_SECP256K1_H)
+#ifndef HAVE_SECP256K1_H
   #error missing secp256k1.h during build
-#endif // !defined(HAVE_SECP256K1_H)
+#endif // HAVE_SECP256K1_H
 
 #include <ruby.h>
 #include <secp256k1.h>
@@ -25,6 +25,10 @@
 #ifdef HAVE_SECP256K1_ECDH_H
 #include <secp256k1_ecdh.h>
 #endif // HAVE_SECP256K1_ECDH_H
+
+#ifdef HAVE_SECP256K1_EXTRAKEYS_H
+#include <secp256k1_extrakeys.h>
+#endif // HAVE_SECP256K1_EXTRAKEYS_H
 
 #ifdef HAVE_SECP256K1_SCHNORRSIG_H
 #include <secp256k1_schnorrsig.h>
