@@ -27,6 +27,10 @@ Returns the binary compressed representation of this public key.
 
 Returns the binary uncompressed representation of this public key.
 
+### to_xonly
+
+Returns the `XOnlyPublicKey` equivalent of this key.
+
 #### ==(other)
 
 Return `true` if this public key matches `other`.
