@@ -458,7 +458,7 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
   TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
-  if (secp256k1_ec_pubkey_parse(secp256k1_context_no_precomp,
+  if (secp256k1_ec_pubkey_parse(secp256k1_context_static,
                                 &(public_key->pubkey),
                                 in_public_key_data,
                                 in_public_key_data_len) != 1)
@@ -505,7 +505,7 @@ PublicKey_uncompressed(VALUE self)
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
-  secp256k1_ec_pubkey_serialize(secp256k1_context_no_precomp,
+  secp256k1_ec_pubkey_serialize(secp256k1_context_static,
                                 serialized_pubkey,
                                 &serialized_pubkey_len,
                                 &(public_key->pubkey),
@@ -528,7 +528,7 @@ PublicKey_compressed(VALUE self)
 
   TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
-  secp256k1_ec_pubkey_serialize(secp256k1_context_no_precomp,
+  secp256k1_ec_pubkey_serialize(secp256k1_context_static,
                                 serialized_pubkey,
                                 &serialized_pubkey_len,
                                 &(public_key->pubkey),
@@ -562,14 +562,14 @@ PublicKey_equals(VALUE self, VALUE other)
   TypedData_Get_Struct(other, PublicKey, &PublicKey_DataType, rhs);
 
   secp256k1_ec_pubkey_serialize(
-    secp256k1_context_no_precomp,
+    secp256k1_context_static,
     lhs_compressed,
     &lhs_len,
     &(lhs->pubkey),
     SECP256K1_EC_COMPRESSED
   );
   secp256k1_ec_pubkey_serialize(
-    secp256k1_context_no_precomp,
+    secp256k1_context_static,
     rhs_compressed,
     &rhs_len,
     &(rhs->pubkey),
@@ -608,7 +608,7 @@ PrivateKey_create(unsigned char *in_private_key_data)
   PrivateKey *private_key;
   VALUE result;
 
-  if (secp256k1_ec_seckey_verify(secp256k1_context_no_precomp,
+  if (secp256k1_ec_seckey_verify(secp256k1_context_static,
                                  in_private_key_data) != 1)
   {
     rb_raise(Secp256k1_Error_class, "invalid private key data");
@@ -718,7 +718,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
   signature_result = Signature_alloc(Secp256k1_Signature_class);
   TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
 
-  if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_no_precomp,
+  if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static,
                                               &(signature->sig),
                                               signature_data) != 1)
   {
@@ -751,7 +751,7 @@ Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
   signature_result = Signature_alloc(Secp256k1_Signature_class);
   TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
 
-  if (secp256k1_ecdsa_signature_parse_der(secp256k1_context_no_precomp,
+  if (secp256k1_ecdsa_signature_parse_der(secp256k1_context_static,
                                           &(signature->sig),
                                           signature_data,
                                           RSTRING_LEN(in_der_encoded_signature)) != 1)
@@ -778,7 +778,7 @@ Signature_der_encoded(VALUE self)
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   der_signature_len = 72;
-  if (secp256k1_ecdsa_signature_serialize_der(secp256k1_context_no_precomp,
+  if (secp256k1_ecdsa_signature_serialize_der(secp256k1_context_static,
                                               der_signature,
                                               &der_signature_len,
                                               &(signature->sig)) != 1)
@@ -806,7 +806,7 @@ Signature_compact(VALUE self)
 
   TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
-  if (secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_no_precomp,
+  if (secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static,
                                                   compact_signature,
                                                   &(signature->sig)) != 1)
   {
@@ -847,7 +847,7 @@ Signature_normalized(VALUE self)
 
   was_normalized = Qfalse;
   if (secp256k1_ecdsa_signature_normalize(
-        secp256k1_context_no_precomp,
+        secp256k1_context_static,
         &(normalized_signature->sig),
         &(signature->sig)) == 1)
   {
@@ -881,10 +881,10 @@ Signature_equals(VALUE self, VALUE other)
   TypedData_Get_Struct(other, Signature, &Signature_DataType, rhs);
 
   secp256k1_ecdsa_signature_serialize_compact(
-    secp256k1_context_no_precomp, lhs_compact, &(lhs->sig)
+    secp256k1_context_static, lhs_compact, &(lhs->sig)
   );
   secp256k1_ecdsa_signature_serialize_compact(
-    secp256k1_context_no_precomp, rhs_compact, &(rhs->sig)
+    secp256k1_context_static, rhs_compact, &(rhs->sig)
   );
 
   if (memcmp(lhs_compact, rhs_compact, 64) == 0)
@@ -939,7 +939,7 @@ RecoverableSignature_compact(VALUE self)
   );
 
   if (secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        secp256k1_context_no_precomp,
+        secp256k1_context_static,
         compact_sig,
         &recovery_id,
         &(recoverable_signature->sig)) != 1)
@@ -988,7 +988,7 @@ RecoverableSignature_to_signature(VALUE self)
 
   // NOTE: This method cannot fail
   secp256k1_ecdsa_recoverable_signature_convert(
-    secp256k1_context_no_precomp,
+    secp256k1_context_static,
     &(signature->sig),
     &(recoverable_signature->sig));
 
@@ -1423,7 +1423,7 @@ Context_recoverable_signature_from_compact(
   );
 
   if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-        secp256k1_context_no_precomp,
+        secp256k1_context_static,
         &(recoverable_signature->sig),
         compact_sig,
         recovery_id) == 1)
