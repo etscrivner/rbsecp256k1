@@ -5,13 +5,6 @@ Secp256k1::KeyPair
 
 Secp256k1::KeyPair represents a public-private Secp256k1 key pair.
 
-Initializers
-------------
-
-#### new(public_key, private_key)
-
-Initializes a new key pair with `public_key` (type: [PublicKey](public_key.md)) and `private_key` (type: [PrivateKey](private_key.md)).
-
 Instance Methods
 ----------------
 

@@ -8,10 +8,16 @@
 // Dependencies:
 //   * libsecp256k1
 
-// Sanity check that we have the basic header files we expect.
+// Sanity check that we have the basic header file.
 #ifndef HAVE_SECP256K1_H
   #error missing secp256k1.h during build
 #endif // HAVE_SECP256K1_H
+
+// Sanity check we have extrakeys module as we need it for keypair which is
+// used by schnorrsig.
+#ifndef HAVE_SECP256K1_EXTRAKEYS_H
+  #error missing secp256k1_extrakeys.h during build
+#endif // HAVE_SECP256K1_EXTRAKEYS_H
 
 #include <ruby.h>
 #include <secp256k1.h>
@@ -102,8 +108,7 @@ typedef struct Context_dummy {
 } Context;
 
 typedef struct KeyPair_dummy {
-  VALUE public_key;
-  VALUE private_key;
+  secp256k1_keypair keypair;
 } KeyPair;
 
 typedef struct PublicKey_dummy {
@@ -186,24 +191,16 @@ static const rb_data_type_t PrivateKey_DataType = {
 
 // KeyPair
 static void
-KeyPair_mark(void *in_key_pair)
+KeyPair_free(void *in_keypair)
 {
-  KeyPair *key_pair = (KeyPair*)in_key_pair;
-
-  // Mark both contained objects to ensure they are properly garbage collected
-  rb_gc_mark(key_pair->public_key);
-  rb_gc_mark(key_pair->private_key);
-}
-
-static void
-KeyPair_free(void *self)
-{
-  xfree(self);
+  KeyPair *keypair;
+  keypair = (KeyPair*)in_keypair;
+  xfree(keypair);
 }
 
 static const rb_data_type_t KeyPair_DataType = {
   "KeyPair",
-  { KeyPair_mark, KeyPair_free, 0 },
+  { 0, KeyPair_free, 0 },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -351,80 +348,6 @@ RecoverableSignData(secp256k1_context *in_context,
 #endif // HAVE_SECP256K1_RECOVERY_H
 
 //
-// Secp256k1::KeyPair class interface
-//
-
-static VALUE
-KeyPair_alloc(VALUE klass)
-{
-  KeyPair *key_pair;
-
-  key_pair = ALLOC(KeyPair);
-
-  return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
-}
-
-/**
- * Default constructor.
- *
- * @param in_public_key [Secp256k1::PublicKey] public key
- * @param in_private_key [Secp256k1::PrivateKey] private key
- * @return [Secp256k1::KeyPair] newly initialized key pair.
- */
-static VALUE
-KeyPair_initialize(VALUE self, VALUE in_public_key, VALUE in_private_key)
-{
-  KeyPair *key_pair;
-
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
-  Check_TypedStruct(in_public_key, &PublicKey_DataType);
-  Check_TypedStruct(in_private_key, &PrivateKey_DataType);
-
-  key_pair->public_key = in_public_key;
-  key_pair->private_key = in_private_key;
-
-  rb_iv_set(self, "@public_key", in_public_key);
-  rb_iv_set(self, "@private_key", in_private_key);
-
-  return self;
-}
-
-/**
- * Compare two key pairs.
- *
- * Two key pairs are equal if they have the same public and private key. The
- * keys are compared using their own comparison operators.
- *
- * @param other [Secp256k1::KeyPair] key pair to compare to.
- * @return [Boolean] true if the keys match, false otherwise.
- */
-static VALUE
-KeyPair_equals(VALUE self, VALUE other)
-{
-  KeyPair *lhs;
-  KeyPair *rhs;
-  VALUE public_keys_equal;
-  VALUE private_keys_equal;
-
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, lhs);
-  TypedData_Get_Struct(other, KeyPair, &KeyPair_DataType, rhs);
-
-  public_keys_equal = rb_funcall(
-    lhs->public_key, rb_intern("=="), 1, rhs->public_key
-  );
-  private_keys_equal = rb_funcall(
-    lhs->private_key, rb_intern("=="), 1, rhs->private_key
-  );
-
-  if (public_keys_equal == Qtrue && private_keys_equal == Qtrue)
-  {
-    return Qtrue;
-  }
-
-  return Qfalse;
-}
-
-//
 // Secp256k1::PublicKey class interface
 //
 
@@ -437,27 +360,6 @@ PublicKey_alloc(VALUE klass)
   public_key = ALLOC(PublicKey);
   MEMZERO(public_key, PublicKey, 1);
   result = TypedData_Wrap_Struct(klass, &PublicKey_DataType, public_key);
-
-  return result;
-}
-
-static VALUE
-PublicKey_create_from_private_key(Context *in_context,
-                                  unsigned char *private_key_data)
-{
-  PublicKey *public_key;
-  VALUE result;
-
-  result = PublicKey_alloc(Secp256k1_PublicKey_class);
-  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
-
-  if (secp256k1_ec_pubkey_create(
-        in_context->ctx,
-        (&public_key->pubkey),
-        private_key_data) != 1)
-  {
-    rb_raise(Secp256k1_DeserializationError_class, "invalid private key data");
-  }
 
   return result;
 }
@@ -681,6 +583,92 @@ PrivateKey_equals(VALUE self, VALUE other)
   TypedData_Get_Struct(other, PrivateKey, &PrivateKey_DataType, rhs);
 
   if (memcmp(lhs->data, rhs->data, 32) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
+}
+
+//
+// Secp256k1::KeyPair class interface
+//
+
+static VALUE
+KeyPair_alloc(VALUE klass)
+{
+  KeyPair *key_pair;
+
+  key_pair = ALLOC(KeyPair);
+
+  return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
+}
+
+/**
+ * Retrieve the public key for the given key pair.
+ *
+ * @return [Secp256k1::PublicKey] public key corresponding to private key.
+ */
+static VALUE
+KeyPair_public_key(VALUE self)
+{
+  KeyPair *key_pair;
+  VALUE result;
+  PublicKey *public_key;
+
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+
+  result = PublicKey_alloc(Secp256k1_PublicKey_class);
+  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+
+  if (secp256k1_keypair_pub(secp256k1_context_static, &public_key->pubkey, &key_pair->keypair) == 0)
+  {
+    rb_raise(Secp256k1_Error_class, "failed to derive public key from keypair");
+  }
+
+  return result;
+}
+
+/**
+ * Retrieve the private key for the given key pair.
+ *
+ * @return [Secp256k1::PrivateKey] public key corresponding to private key.
+ */
+static VALUE
+KeyPair_private_key(VALUE self)
+{
+  KeyPair *key_pair;
+  unsigned char private_key_data[32];
+
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+
+  if (secp256k1_keypair_sec(secp256k1_context_static, private_key_data, &key_pair->keypair) == 0)
+  {
+    rb_raise(Secp256k1_Error_class, "failed to derive private key from keypair");
+  }
+
+  return PrivateKey_create(private_key_data);
+}
+
+/**
+ * Compare two key pairs.
+ *
+ * Two key pairs are equal if they have the same public and private key. The
+ * keys are compared using their own comparison operators.
+ *
+ * @param other [Secp256k1::KeyPair] key pair to compare to.
+ * @return [Boolean] true if the keys match, false otherwise.
+ */
+static VALUE
+KeyPair_equals(VALUE self, VALUE other)
+{
+  KeyPair *lhs;
+  KeyPair *rhs;
+
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, lhs);
+  TypedData_Get_Struct(other, KeyPair, &KeyPair_DataType, rhs);
+
+  if (memcmp(&lhs->keypair, &rhs->keypair, sizeof(secp256k1_keypair)) == 0)
   {
     return Qtrue;
   }
@@ -1221,8 +1209,8 @@ static VALUE
 Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 {
   Context *context;
-  VALUE public_key;
-  VALUE private_key;
+  VALUE result;
+  KeyPair *keypair;
   unsigned char *private_key_data;
 
   Check_Type(in_private_key_data, T_STRING);
@@ -1233,18 +1221,17 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
     rb_raise(Secp256k1_Error_class, "private key data must be 32 bytes in length");
   }
 
+  result = KeyPair_alloc(Secp256k1_KeyPair_class);
+  TypedData_Get_Struct(result, KeyPair, &KeyPair_DataType, keypair);
+
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
 
-  private_key = PrivateKey_create(private_key_data);
-  public_key = PublicKey_create_from_private_key(context, private_key_data);
+  if (secp256k1_keypair_create(context->ctx, &keypair->keypair, private_key_data) == 0)
+  {
+    rb_raise(Secp256k1_Error_class, "invalid secret when attempting to create keypair");
+  }
 
-  return rb_funcall(
-    Secp256k1_KeyPair_class,
-    rb_intern("new"),
-    2,
-    public_key,
-    private_key
-  );
+  return result;
 }
 
 /**
@@ -1541,7 +1528,7 @@ Secp256k1_have_ecdh(VALUE module)
 
 void Init_rbsecp256k1(void)
 {
-  // Perform selftest to ensure secp256k1_static_context is valid. This will
+  // Perform selftest to ensure secp256k1_context_static is valid. This will
   // cause the program to abort if the selftest fails.
   secp256k1_selftest();
 
@@ -1600,12 +1587,8 @@ void Init_rbsecp256k1(void)
                                                   rb_cObject);
   rb_undef_alloc_func(Secp256k1_KeyPair_class);
   rb_define_alloc_func(Secp256k1_KeyPair_class, KeyPair_alloc);
-  rb_define_attr(Secp256k1_KeyPair_class, "public_key", 1, 0);
-  rb_define_attr(Secp256k1_KeyPair_class, "private_key", 1, 0);
-  rb_define_method(Secp256k1_KeyPair_class,
-                   "initialize",
-                   KeyPair_initialize,
-                   2);
+  rb_define_method(Secp256k1_KeyPair_class, "public_key", KeyPair_public_key, 0);
+  rb_define_method(Secp256k1_KeyPair_class, "private_key", KeyPair_private_key, 0);
   rb_define_method(Secp256k1_KeyPair_class, "==", KeyPair_equals, 1);
 
   // Secp256k1::PublicKey
