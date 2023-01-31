@@ -808,6 +808,32 @@ KeyPair_public_key(VALUE self)
 }
 
 /**
+ * Retrieve the x-only public key for the given key pair.
+ *
+ * @return [Secp256k1::XOnlyPublicKey] x-only public key corresponding to
+ * private key.
+ */
+static VALUE
+KeyPair_xonly_public_key(VALUE self)
+{
+  KeyPair *key_pair;
+  VALUE result;
+  XOnlyPublicKey *xonly_pubkey;
+
+  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+
+  result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
+  TypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+
+  if (secp256k1_keypair_xonly_pub(secp256k1_context_static, &xonly_pubkey->pubkey, NULL, &key_pair->keypair) == 0)
+  {
+    rb_raise(Secp256k1_Error_class, "failed to derive x-only public key from keypair");
+  }
+
+  return result;
+}
+
+/**
  * Retrieve the private key for the given key pair.
  *
  * @return [Secp256k1::PrivateKey] public key corresponding to private key.
@@ -1767,6 +1793,7 @@ void Init_rbsecp256k1(void)
   rb_define_alloc_func(Secp256k1_KeyPair_class, KeyPair_alloc);
   rb_define_method(Secp256k1_KeyPair_class, "public_key", KeyPair_public_key, 0);
   rb_define_method(Secp256k1_KeyPair_class, "private_key", KeyPair_private_key, 0);
+  rb_define_method(Secp256k1_KeyPair_class, "xonly_public_key", KeyPair_xonly_public_key, 0);
   rb_define_method(Secp256k1_KeyPair_class, "==", KeyPair_equals, 1);
 
   // Secp256k1::PublicKey

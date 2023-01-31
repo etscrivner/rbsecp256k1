@@ -12,6 +12,10 @@ Instance Methods
 
 Returns the [PublicKey](public_key.md) part of this key pair.
 
+#### xonly_public_key
+
+Returns the [XOnlyPublicKey](xonly_public_key.md).
+
 #### private_key
 
 Returns the [PrivateKey](private_key.md) part of this key pair.

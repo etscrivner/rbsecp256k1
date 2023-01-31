@@ -5,7 +5,7 @@ require 'spec_helper'
 RSpec.describe Secp256k1::XOnlyPublicKey do
   let(:context) { Secp256k1::Context.create }
   let(:key_pair) { context.generate_key_pair }
-  let(:xonly_pubkey) { key_pair.public_key.to_xonly }
+  let(:xonly_pubkey) { key_pair.xonly_public_key }
 
   describe '#serialized' do
     it 'returns a 32-byte string value' do
@@ -24,7 +24,7 @@ RSpec.describe Secp256k1::XOnlyPublicKey do
 
   describe '==' do
     it 'is false if keys do not match' do
-      other = context.generate_key_pair.public_key.to_xonly
+      other = context.generate_key_pair.xonly_public_key
       expect(other).not_to eq(xonly_pubkey)
     end
   end
