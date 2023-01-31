@@ -25,5 +25,12 @@ module Secp256k1
     def generate_key_pair
       key_pair_from_private_key(SecureRandom.random_bytes(32))
     end
+
+    # Create Schnorr signature generating auxrand.
+    #
+    # @return [Secp256k1::SchnorrSignature] schnorr signature
+    def sign_schnorr(keypair, message)
+      sign_schnorr_custom(keypair, message, SecureRandom.random_bytes(32))
+    end
   end
 end

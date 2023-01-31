@@ -17,3 +17,8 @@ otherwise.
 
 Returns `true` if the EC Diffie-Hellman module was built with libsecp256k1,
 `false` otherwise.
+
+#### have_schnorr?
+
+Returns `true` if the Schnorr signature module was built with libsecp256k1,
+`false` otherwise.

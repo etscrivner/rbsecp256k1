@@ -11,10 +11,12 @@ Classes and Modules
 | [Secp256k1](secp256k1.md)  | [Context](context.md)                            | [Util](util.md)
 |                            | [KeyPair](key_pair.md)                           |
 |                            | [PublicKey](public_key.md)                       |
+|                            | [XOnlyPublicKey](xonly_public_key.md)            |
 |                            | [PrivateKey](private_key.md)                     |
 |                            | [SharedSecret](shared_secret.md)                 |
 |                            | [Signature](signature.md)                        |
 |                            | [RecoverableSignature](recoverable_signature.md) |
+|                            | [SchnorrSignature](schnorr_signature.md)         |
 
 Glossary
 --------
@@ -28,6 +30,8 @@ efficient.
 **[PublicKey](public_key.md)** is a Secp256k1 public key. It can come in either
 compressed or uncompressed format.
 
+**[XOnlyPublicKey](xonly_public_key.md)** is a Secp256k1 x-only public key.
+
 **[PrivateKey](private_key.md)** is a 64-byte Secp256k1 private key.
 
 **[SharedSecret](shared_secret.md)** A 32-byte shared secret computed from a
@@ -38,6 +42,8 @@ of a piece of data.
 
 **[RecoverableSignature](recoverable_signature.md)** is a recoverable ECDSA signature of the SHA-256 message
 hash of a piece of data.
+
+**[SchnorrSignature](schnorr_signature.md)** is a Schnorr signature of a 32-byte message.
 
 Examples
 --------
@@ -195,6 +201,59 @@ signature = Secp256k1::Signature.from_der_encoded("0D\x02 <\xC6\x7F/\x921l\x89Z\
 # 2. From compact signature
 signature = Secp256k1::Signature.from_compact("<\xC6\x7F/\x921l\x89Z\xFBs\x89p\xEE\x18u\x8B\x92\x9D\xA6\x84\xC5Y<t\xB7\xF1\f\xEE\f\x81J\t\"\xDF]\x1D\xA7W@^\xAAokH\b\x00\xE2L\xCF\x82\xA3\x05\x1E\x00\xF9\xFC\xB19\x0F\x93|\xB1f\x00")
 # => #<Secp256k1::Signature:0x0000559b0bdcaa68>
+```
+
+Schnorr Signature Examples
+--------------------------
+
+### 1. Checking for the Schnorr module
+
+To check if you have compiled the schnorr signature module into your local
+libsecp256k1 run the following:
+
+```ruby
+Secp256k1.have_schnorr?
+# => true
+```
+
+### 2. Calculate the tagged SHA-256 hash of data
+
+You can produce the tagged SHA-256 hash recommended for use with Schnorr
+signatures as follows:
+
+```ruby
+context = Secp256k1::Context.create
+
+context.tagged_sha256('my_test_tag', 'data')
+=> "0\x85|\xC8h\x9A\x8C^\x0FoD\xDF\xD0,\x1C\x1EV}\xE8\xA8<\xC5\xA5vI\x9E`=\x9B\xC4\xA8\xAE"
+```
+
+### 3. Sign and verify a message using Schnorr signatures
+
+```ruby
+context = Secp256k1::Context.create
+key_pair = context.generate_key_pair
+message = context.tagged_sha256('my_test_tag', 'data')
+
+schnorr_sig = context.sign_schnorr(key_pair, message)
+=> #<Secp256k1::SchnorrSignature:0x00007f4de11e5768>
+
+schnorr_sig.verify(message, key_pair.xonly_public_key)
+=> true
+
+schnorr_sig.serialized
+=> "\x16\xEF\x04\xB0JP\xE9\x90\xC2\xB1\xE6-l\xDB\x1D\xAE\xAAc\xBF@9s\x02\xC2\xD5[\xFB\x19Q\xFAI^Hj\xD1)\xBE\xEA\xA5!a\xAD\xBEO\xCE7\x9Em\x13;\xE8R\x8A\x81$\nv\xF4\xD3\xB25\xA9\xF9\xC0"
+```
+
+### 4. Load a Schnorr signature from binary serialized version
+
+```ruby
+context = Secp256k1::Context.create
+
+schnorr_sig_raw = "\x16\xEF\x04\xB0JP\xE9\x90\xC2\xB1\xE6-l\xDB\x1D\xAE\xAAc\xBF@9s\x02\xC2\xD5[\xFB\x19Q\xFAI^Hj\xD1)\xBE\xEA\xA5!a\xAD\xBEO\xCE7\x9Em\x13;\xE8R\x8A\x81$\nv\xF4\xD3\xB25\xA9\xF9\xC0"
+
+Secp256k1::SchnorrSignature.from_data(schnorr_sig_raw)
+=> #<Secp256k1::SchnorrSignature:0x00007f4de1225818>
 ```
 
 Recoverable Signature Examples

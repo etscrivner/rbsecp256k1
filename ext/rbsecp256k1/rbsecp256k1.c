@@ -53,6 +53,7 @@
 // |--  RecoverableSignature (recovery module)
 // |--  SharedSecret (ecdh module)
 // |--  Signature
+// |--  SchnorrSignature
 //
 // The Context class contains most of the methods that invoke libsecp256k1.
 // The KeyPair, PublicKey, PrivateKey, RecoverableSignature, SharedSecret, and
@@ -83,6 +84,8 @@ const size_t COMPRESSED_PUBKEY_SIZE_BYTES = 33;
 const size_t SERIALIZED_XONLY_PUBKEY_SIZE_BYTES = 32;
 // Size of a compact signature in bytes
 const size_t COMPACT_SIG_SIZE_BYTES = 64;
+// Size of a schnorr signature in bytes
+const size_t SCHNORR_SIG_SIZE_BYTES = 64;
 
 // Globally define our module and its associated classes so we can instantiate
 // objects from anywhere. The use of global variables seems to be inline with
@@ -105,6 +108,10 @@ static VALUE Secp256k1_RecoverableSignature_class;
 #ifdef HAVE_SECP256K1_ECDH_H
 static VALUE Secp256k1_SharedSecret_class;
 #endif // HAVE_SECP256K1_ECDH_H
+
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+static VALUE Secp256k1_SchnorrSignature_class;
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
 
 // Forward definitions for all structures
 typedef struct Context_dummy {
@@ -144,6 +151,11 @@ typedef struct SharedSecret_dummy {
 } SharedSecret;
 #endif // HAVE_SECP256K1_ECDH_H
 
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+typedef struct SchnorrSignature_dummy {
+  unsigned char sig[64]; // Serialized schnorr signature data
+} SchnorrSignature;
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
 //
 // Typed data definitions
 //
@@ -294,6 +306,25 @@ static const rb_data_type_t SharedSecret_DataType = {
 };
 #endif // HAVE_SECP256K1_ECDH_H
 
+// SchnorrSignature
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+static void
+SchnorrSignature_free(void *in_schnorr_sig)
+{
+  SchnorrSignature *schnorr_sig;
+
+  schnorr_sig = (SchnorrSignature*)in_schnorr_sig;
+  xfree(schnorr_sig);
+}
+
+static const rb_data_type_t SchnorrSignature_DataType = {
+  "SchnorrSignature",
+  { 0, SchnorrSignature_free, 0 },
+  0, 0,
+  RUBY_TYPED_FREE_IMMEDIATELY
+};
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
+
 /**
  * Macro: SUCCESS
  * 
@@ -410,6 +441,7 @@ XOnlyPublicKey_create_from_data(unsigned char *in_xonly_pubkey32)
   if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_pubkey->pubkey, in_xonly_pubkey32) != 1)
   {
     rb_raise(Secp256k1_DeserializationError_class, "invalid x-only public key data");
+    return Qnil;
   }
 
   return result;
@@ -432,6 +464,7 @@ XOnlyPublicKey_from_data(VALUE klass, VALUE in_xonly_public_key_serialized)
   if (RSTRING_LEN(in_xonly_public_key_serialized) != 32)
   {
     rb_raise(Secp256k1_DeserializationError_class, "x-only public key data must be 32 bytes in length");
+    return Qnil;
   }
 
   xonly_pubkey_data = (unsigned char*)StringValuePtr(in_xonly_public_key_serialized);
@@ -455,6 +488,7 @@ XOnlyPublicKey_serialized(VALUE self)
   if (secp256k1_xonly_pubkey_serialize(secp256k1_context_static, out, &xonly_pubkey->pubkey) != 1)
   {
     rb_raise(Secp256k1_SerializationError_class, "failed to serialize x-only public key");
+    return Qnil;
   }
 
   return rb_str_new((char*)out, SERIALIZED_XONLY_PUBKEY_SIZE_BYTES);
@@ -516,6 +550,7 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
                                 in_public_key_data_len) != 1)
   {
     rb_raise(Secp256k1_DeserializationError_class, "invalid public key data");
+    return Qnil;
   }
 
   return result;
@@ -612,6 +647,7 @@ PublicKey_to_xonly(VALUE self)
                                          &public_key->pubkey) != 1)
   {
     rb_raise(Secp256k1_Error_class, "failed to convert pubkey to x-only pubkey");
+    return Qnil;
   }
 
   return result;
@@ -693,6 +729,7 @@ PrivateKey_create(unsigned char *in_private_key_data)
                                  in_private_key_data) != 1)
   {
     rb_raise(Secp256k1_Error_class, "invalid private key data");
+    return Qnil;
   }
 
   result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
@@ -737,6 +774,7 @@ PrivateKey_from_data(VALUE klass, VALUE in_private_key_data)
       Secp256k1_Error_class,
       "private key data must be 32 bytes in length"
     );
+    return Qnil;
   }
 
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
@@ -802,6 +840,7 @@ KeyPair_public_key(VALUE self)
   if (secp256k1_keypair_pub(secp256k1_context_static, &public_key->pubkey, &key_pair->keypair) == 0)
   {
     rb_raise(Secp256k1_Error_class, "failed to derive public key from keypair");
+    return Qnil;
   }
 
   return result;
@@ -828,6 +867,7 @@ KeyPair_xonly_public_key(VALUE self)
   if (secp256k1_keypair_xonly_pub(secp256k1_context_static, &xonly_pubkey->pubkey, NULL, &key_pair->keypair) == 0)
   {
     rb_raise(Secp256k1_Error_class, "failed to derive x-only public key from keypair");
+    return Qnil;
   }
 
   return result;
@@ -849,6 +889,7 @@ KeyPair_private_key(VALUE self)
   if (secp256k1_keypair_sec(secp256k1_context_static, private_key_data, &key_pair->keypair) == 0)
   {
     rb_raise(Secp256k1_Error_class, "failed to derive private key from keypair");
+    return Qnil;
   }
 
   return PrivateKey_create(private_key_data);
@@ -929,6 +970,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
                                               signature_data) != 1)
   {
     rb_raise(Secp256k1_DeserializationError_class, "invalid compact signature");
+    return Qnil;
   }
 
   return signature_result;
@@ -963,6 +1005,7 @@ Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
                                           RSTRING_LEN(in_der_encoded_signature)) != 1)
   {
     rb_raise(Secp256k1_DeserializationError_class, "invalid DER encoded signature");
+    return Qnil;
   }
 
   return signature_result;
@@ -993,6 +1036,7 @@ Signature_der_encoded(VALUE self)
       Secp256k1_SerializationError_class,
       "could not compute DER encoded signature"
     );
+    return Qnil;
   }
 
   return rb_str_new((char*)der_signature, der_signature_len);
@@ -1020,6 +1064,7 @@ Signature_compact(VALUE self)
       Secp256k1_SerializationError_class,
       "unable to compute compact signature"
     );
+    return Qnil;
   }
 
   return rb_str_new((char*)compact_signature, COMPACT_SIG_SIZE_BYTES);
@@ -1154,6 +1199,7 @@ RecoverableSignature_compact(VALUE self)
       Secp256k1_SerializationError_class,
       "unable to serialize recoverable signature"
     );
+    return Qnil;
   }
 
   // Create a new array with room for 2 elements and push data onto it
@@ -1222,6 +1268,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
   if (RSTRING_LEN(in_hash32) != 32)
   {
     rb_raise(Secp256k1_Error_class, "in_hash32 is not 32 bytes in length");
+    return Qnil;
   }
 
   TypedData_Get_Struct(
@@ -1306,6 +1353,98 @@ SharedSecret_alloc(VALUE klass)
 }
 
 #endif // HAVE_SECP256K1_ECDH_H
+
+//
+// Secp256k1::SchnorrSignature class interface
+//
+
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+
+static VALUE
+SchnorrSignature_alloc(VALUE klass)
+{
+  VALUE new_instance;
+  SchnorrSignature *schnorr_sig;
+
+  schnorr_sig = ALLOC(SchnorrSignature);
+  MEMZERO(schnorr_sig, SchnorrSignature, 1);
+  new_instance = TypedData_Wrap_Struct(klass, &SchnorrSignature_DataType, schnorr_sig);
+
+  return new_instance;
+}
+
+static VALUE
+SchnorrSignature_from_data(VALUE klass, VALUE in_data)
+{
+  SchnorrSignature* sig;
+  VALUE result;
+  unsigned char* schnorr_data;
+
+  Check_Type(in_data, T_STRING);
+  if (RSTRING_LEN(in_data) != SCHNORR_SIG_SIZE_BYTES)
+  {
+    rb_raise(Secp256k1_DeserializationError_class, "schnorr signature data must be 64 bytes in length");
+    return Qnil;
+  }
+
+  schnorr_data = (unsigned char*)StringValuePtr(in_data);
+
+  result = SchnorrSignature_alloc(Secp256k1_SchnorrSignature_class);
+  TypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, sig);
+
+  memcpy(sig->sig, schnorr_data, SCHNORR_SIG_SIZE_BYTES);
+
+  return result;
+}
+
+static VALUE
+SchnorrSignature_serialized(VALUE self)
+{
+  SchnorrSignature *schnorr_sig;
+
+  TypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
+
+  return rb_str_new((char*)schnorr_sig->sig, SCHNORR_SIG_SIZE_BYTES);
+}
+
+static VALUE
+SchnorrSignature_verify(VALUE self, VALUE in_message, VALUE in_xonly_pubkey)
+{
+  XOnlyPublicKey *xonly_pubkey;
+  SchnorrSignature *schnorr_sig;
+  unsigned char* msg;
+
+  TypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
+  TypedData_Get_Struct(in_xonly_pubkey, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+  Check_Type(in_message, T_STRING);
+
+  msg = (unsigned char*)StringValuePtr(in_message);
+  if (secp256k1_schnorrsig_verify(secp256k1_context_static, schnorr_sig->sig, msg, RSTRING_LEN(in_message), &xonly_pubkey->pubkey) != 1)
+  {
+    return Qfalse;
+  }
+
+  return Qtrue;
+}
+
+static VALUE
+SchnorrSignature_equals(VALUE self, VALUE other)
+{
+  SchnorrSignature *lhs;
+  SchnorrSignature *rhs;
+
+  TypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, lhs);
+  TypedData_Get_Struct(other, SchnorrSignature, &SchnorrSignature_DataType, rhs);
+
+  if (memcmp(lhs->sig, rhs->sig, SCHNORR_SIG_SIZE_BYTES) == 0)
+  {
+    return Qtrue;
+  }
+
+  return Qfalse;
+}
+
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
 
 //
 // Secp256k1::Context class interface
@@ -1423,6 +1562,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   if (RSTRING_LEN(in_private_key_data) != 32)
   {
     rb_raise(Secp256k1_Error_class, "private key data must be 32 bytes in length");
+    return Qnil;
   }
 
   result = KeyPair_alloc(Secp256k1_KeyPair_class);
@@ -1462,6 +1602,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
   if (RSTRING_LEN(in_hash32) != 32)
   {
     rb_raise(Secp256k1_Error_class, "in_hash32 is not 32 bytes in length");
+    return Qnil;
   }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
@@ -1481,6 +1622,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
   }
 
   rb_raise(Secp256k1_Error_class, "unable to compute signature");
+  return Qnil;
 }
 
 /**
@@ -1509,6 +1651,7 @@ Context_tagged_sha256(VALUE self, VALUE in_tag, VALUE in_message)
   if (secp256k1_tagged_sha256(context->ctx, hash32, tag, RSTRING_LEN(in_tag), msg, RSTRING_LEN(in_message)) != 1)
   {
     rb_raise(Secp256k1_Error_class, "failed to compute tagged SHA256");
+    return Qnil;
   }
 
   return rb_str_new((char*)hash32, 32);
@@ -1583,6 +1726,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
   if (RSTRING_LEN(in_hash32) != 32)
   {
     rb_raise(Secp256k1_Error_class, "in_hash32 is not 32 bytes in length");
+    return Qnil;
   }
 
   TypedData_Get_Struct(self, Context, &Context_DataType, context);
@@ -1609,6 +1753,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
   }
 
   rb_raise(Secp256k1_Error_class, "unable to compute recoverable signature");
+  return Qnil;
 }
 
 /**
@@ -1643,11 +1788,13 @@ Context_recoverable_signature_from_compact(
   if (RSTRING_LEN(in_compact_sig) != 64)
   {
     rb_raise(Secp256k1_Error_class, "compact signature is not 64 bytes");
+    return Qnil;
   }
 
   if (recovery_id < 0 || recovery_id > 3)
   {
     rb_raise(Secp256k1_Error_class, "invalid recovery ID, must be in range [0, 3]");
+    return Qnil;
   }
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
@@ -1669,6 +1816,7 @@ Context_recoverable_signature_from_compact(
   }
   
   rb_raise(Secp256k1_DeserializationError_class, "unable to parse recoverable signature");
+  return Qnil;
 }
 
 #endif // HAVE_SECP256K1_RECOVERY_H
@@ -1712,6 +1860,7 @@ Context_ecdh(VALUE self, VALUE point, VALUE scalar)
                      NULL) != 1)
   {
     rb_raise(Secp256k1_Error_class, "invalid scalar provided to ecdh");
+    return Qnil;
   }
 
   rb_iv_set(result, "@data", rb_str_new((char*)shared_secret->data, 32));
@@ -1720,6 +1869,57 @@ Context_ecdh(VALUE self, VALUE point, VALUE scalar)
 }
 
 #endif // HAVE_SECP256K1_ECDH_H
+
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+
+static VALUE
+Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALUE in_auxrand)
+{
+  Context* context;
+  KeyPair* keypair;
+  SchnorrSignature* schnorr_sig;
+  unsigned char* msg;
+  unsigned char* auxrand;
+  unsigned char sig[64];
+  VALUE result;
+
+  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  TypedData_Get_Struct(in_keypair, KeyPair, &KeyPair_DataType, keypair);
+
+  Check_Type(in_message, T_STRING);
+  if (RSTRING_LEN(in_message) != 32)
+  {
+    rb_raise(Secp256k1_Error_class, "schnorr signing message must be 32-bytes in length");
+    return Qnil;
+  }
+
+  if (!NIL_P(in_auxrand))
+  {
+    Check_Type(in_auxrand, T_STRING);
+    if (RSTRING_LEN(in_auxrand) != 32)
+    {
+      rb_raise(Secp256k1_Error_class, "schnorr signing auxrand must be 32-bytes in length");
+      return Qnil;
+    }
+  }
+
+  msg = (unsigned char*)StringValuePtr(in_message);
+  auxrand = (unsigned char*)StringValuePtr(in_auxrand);
+
+  if (secp256k1_schnorrsig_sign32(context->ctx, sig, msg, &keypair->keypair, auxrand) != 1)
+  {
+    rb_raise(Secp256k1_Error_class, "schnorr signing failed");
+    return Qnil;
+  }
+
+  result = SchnorrSignature_alloc(Secp256k1_SchnorrSignature_class);
+  TypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
+  memcpy(schnorr_sig->sig, sig, SCHNORR_SIG_SIZE_BYTES);
+
+  return result;
+}
+
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
 
 //
 // Secp256k1 module methods
@@ -1757,6 +1957,21 @@ Secp256k1_have_ecdh(VALUE module)
 #endif // HAVE_SECP256K1_ECDH_H
 }
 
+/**
+ * Indicates whether or not libsecp256k1 Schnorr signature module is installed.
+ *
+ * @return [Boolean]
+ */
+static VALUE
+Secp256k1_have_schnorr(VALUE module)
+{
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+  return Qtrue;
+#else
+  return Qfalse;
+#endif
+}
+
 //
 // Library initialization
 //
@@ -1779,6 +1994,12 @@ void Init_rbsecp256k1(void)
     Secp256k1_module,
     "have_ecdh?",
     Secp256k1_have_ecdh,
+    0
+  );
+  rb_define_singleton_method(
+    Secp256k1_module,
+    "have_schnorr?",
+    Secp256k1_have_schnorr,
     0
   );
 
@@ -1995,4 +2216,29 @@ void Init_rbsecp256k1(void)
     2
   );
 #endif // HAVE_SECP256K1_ECDH_H
+
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+  Secp256k1_SchnorrSignature_class = rb_define_class_under(
+    Secp256k1_module,
+    "SchnorrSignature",
+    rb_cObject);
+  rb_undef_alloc_func(Secp256k1_SchnorrSignature_class);
+  rb_define_alloc_func(Secp256k1_SchnorrSignature_class, SchnorrSignature_alloc);
+  rb_define_method(Secp256k1_SchnorrSignature_class, "serialized", SchnorrSignature_serialized, 0);
+  rb_define_method(Secp256k1_SchnorrSignature_class, "verify", SchnorrSignature_verify, 2);
+  rb_define_method(Secp256k1_SchnorrSignature_class, "==", SchnorrSignature_equals, 1);
+
+  rb_define_singleton_method(
+    Secp256k1_SchnorrSignature_class,
+    "from_data",
+    SchnorrSignature_from_data,
+    1
+  );
+
+  rb_define_method(
+    Secp256k1_Context_class,
+    "sign_schnorr_custom",
+    Context_sign_schnorr_custom,
+    3);
+#endif // HAVE_SECP256K1_SCHNORRSIG_H
 }

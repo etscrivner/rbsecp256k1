@@ -19,4 +19,10 @@ RSpec.describe Secp256k1 do
       expect(Secp256k1.have_ecdh?).to be true
     end
   end
+
+  describe '.have_schnorr?' do
+    it 'has the expected schnorr module' do
+      expect(Secp256k1.have_schnorr?).to be true
+    end
+  end
 end
