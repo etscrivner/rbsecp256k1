@@ -179,6 +179,16 @@ PrivateKey_free(void *in_private_key)
 {
   PrivateKey *private_key;
   private_key = (PrivateKey*)in_private_key;
+
+  /* Take the best practice recommendation from the libsecp256k1 example and
+   * clear the secret from memory in case there are bugs that might allow an
+   * attacker to leak memory.
+   *
+   * That being said its not clear how much control we actually have over Ruby
+   * potentially copying the string version of this private key data.
+   */
+  memset(private_key->data, 0, 32);
+
   xfree(private_key);
 }
 
@@ -518,6 +528,7 @@ PrivateKey_alloc(VALUE klass)
   return new_instance;
 }
 
+/* Internal-only method for creating a private key from secret data */
 static VALUE
 PrivateKey_create(unsigned char *in_private_key_data)
 {
@@ -534,9 +545,22 @@ PrivateKey_create(unsigned char *in_private_key_data)
   TypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
   MEMCPY(private_key->data, in_private_key_data, char, 32);
 
-  rb_iv_set(result, "@data", rb_str_new((char*)in_private_key_data, 32));
-
   return result;
+}
+
+/**
+ * Returns binary string of private key data.
+ *
+ * @return [String] 32 byte binary string of private key data.
+ */
+static VALUE
+PrivateKey_data(VALUE self)
+{
+  PrivateKey *private_key;
+
+  TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
+
+  return(rb_str_new((char*)private_key->data, 32));
 }
 
 /**
@@ -1619,7 +1643,7 @@ void Init_rbsecp256k1(void)
   );
   rb_undef_alloc_func(Secp256k1_PrivateKey_class);
   rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
-  rb_define_attr(Secp256k1_PrivateKey_class, "data", 1, 0);
+  rb_define_method(Secp256k1_PrivateKey_class, "data", PrivateKey_data, 0);
   rb_define_method(Secp256k1_PrivateKey_class, "==", PrivateKey_equals, 1);
   rb_define_singleton_method(
     Secp256k1_PrivateKey_class,
