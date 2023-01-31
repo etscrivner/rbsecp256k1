@@ -274,7 +274,7 @@ Secp256k1.have_recovery?
 You can sign data producing a recoverable signature as follows:
 
 ```ruby
-require 'digest'
+yrequire 'digest'
 
 hash = Digest::SHA256.digest('test message')
 context = Secp256k1::Context.create
