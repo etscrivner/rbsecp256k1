@@ -73,6 +73,23 @@ Signs the data represented by the SHA-256 hash `hash32` using `private_key` and 
 new [RecoverableSignature](recoverable_signature.md). The `private_key` is expected to be a [PrivateKey](private_key.md) and
 `data` can be either a binary string or text.
 
+#### sign_schnorr(keypair, message)
+
+Same as `sign_schnorr_custom(keypair, message, auxrand)` but generates
+`auxrand` for you using `SecureRandom`. This should almost always be the method
+used for Schnorr signing.
+
+#### sign_schnorr_custom(keypair, message, auxrand)
+
+Sign the given 32-byte binary string `message` using the given `keypair`. It is
+recommend that `message` be generated using `tagged_sha256`. `auxrand` should
+be 32-bytes of fresh randomness, but can optionally be `nil` if generating
+randomness is expensive.
+
+#### tagged_sha256(tag, message)
+
+Computes the tagged hash as defined in [BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki). Returns the 32-byte binary string tagged hash.
+
 #### verify(signature, public_key, hash32)
 
 Verifies the given `signature` ([Signature](signature.md)) was signed by

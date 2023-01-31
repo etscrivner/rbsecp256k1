@@ -104,6 +104,16 @@ RSpec.describe Secp256k1::Context do
     end
   end
 
+  describe '#tagged_sha256' do
+    it 'matches run_tagged_sha256_tests in libsecp256k1' do
+      result = subject.tagged_sha256("tag", "msg")
+
+      expect(result).to be_a(String)
+      expect(result.length).to eq(32)
+      expect(result).to eq([0x04, 0x7A, 0x5E, 0x17, 0xB5, 0x86, 0x47, 0xC1, 0x3C, 0xC6, 0xEB, 0xC0, 0xAA, 0x58, 0x3B, 0x62, 0xFB, 0x16, 0x43, 0x32, 0x68, 0x77, 0x40, 0x6C, 0xE2, 0x76, 0x55, 0x9A, 0x3B, 0xDE, 0x55, 0xB3].pack('C*'))
+    end
+  end
+
   describe '#verify' do
     it 'verifies signatures with matching public key and data' do
       signature = subject.sign(key_pair.private_key, sha256(message))
