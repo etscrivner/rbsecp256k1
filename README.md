@@ -100,16 +100,10 @@ To test with recovery functionality disabled run:
 make test WITH_RECOVERY=0
 ```
 
-To test with ECDH functionality disabled run:
-
-```
-make test WITH_ECDH=0
-```
-
 To test with both disabled run:
 
 ```
-make test WITH_RECOVERY=0 WITH_ECDH=0
+make test WITH_RECOVERY=0
 ```
 
 Testing for memory leaks with valgrind:
