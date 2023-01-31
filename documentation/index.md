@@ -59,7 +59,7 @@ This example shows how to generate a new public-private key pair:
 ```ruby
 context = Secp256k1::Context.create
 key_pair = context.generate_key_pair
-# => #<Secp256k1::KeyPair:0x0000559b0bc876b0 @public_key=#<Secp256k1::PublicKey:0x0000559b0bc876d8>, @private_key=#<Secp256k1::PrivateKey:0x0000559b0bc87700 @data="\r\xA7\xB3<\x92\xCDw\xC1\xDB\xEB[BB;=\x80\xB83\xA8]\x06\xD9\x90\xF8v\xFFi\xF0/\x1E\x96\xF9">>
+# => #<Secp256k1::KeyPair:0x0000559b0bc876b0>
 ```
 
 ### 3. Getting compressed and uncompressed public key representations
@@ -162,11 +162,11 @@ context = Secp256k1::Context.create
 
 #1. Load private key alone
 private_key = Secp256k1::PrivateKey.from_data("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
-# => #<Secp256k1::PrivateKey:0x00005647df1bcd30 @data="I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9">
+# => #<Secp256k1::PrivateKey:0x00005647df1bcd30>
 
 # 2. Load key pair from private key data
 key_pair = context.key_pair_from_private_key("I\nX\x85\xAEz}\n\x9B\xA4\\\x81)\xD4\x9Aq\xFDH\t\xBE\x8EP\xC5.\xC6\x1F7-\x86\xA0\xCB\xF9")
-# => #<Secp256k1::KeyPair:0x0000559b0bbf9a90 @public_key=#<Secp256k1::PublicKey:0x0000559b0bbf9ab8>, @private_key=#<Secp256k1::PrivateKey:0x0000559b0bbf9ae0 @data="I\nX\x85\xAEz}\n\x9B\xA4\\\x81)Ԛq\xFDH\t\xBE\x8EP\xC5.\xC6\u001F7-\x86\xA0\xCB\xF9">>
+# => #<Secp256k1::KeyPair:0x0000559b0bbf9a90>
 ```
 
 ### 7. Loading a public key from binary data
