@@ -9,9 +9,9 @@
 //   * libsecp256k1
 
 // Sanity check that we have the basic header files we expect.
-#if !defined(HAVE_SECP256K1_H)
+#ifndef HAVE_SECP256K1_H
   #error missing secp256k1.h during build
-#endif // !defined(HAVE_SECP256K1_H)
+#endif // HAVE_SECP256K1_H
 
 #include <ruby.h>
 #include <secp256k1.h>
@@ -25,6 +25,10 @@
 #ifdef HAVE_SECP256K1_ECDH_H
 #include <secp256k1_ecdh.h>
 #endif // HAVE_SECP256K1_ECDH_H
+
+#ifdef HAVE_SECP256K1_EXTRAKEYS_H
+#include <secp256k1_extrakeys.h>
+#endif // HAVE_SECP256K1_EXTRAKEYS_H
 
 #ifdef HAVE_SECP256K1_SCHNORRSIG_H
 #include <secp256k1_schnorrsig.h>
@@ -949,7 +953,7 @@ RecoverableSignature_compact(VALUE self)
   );
 
   if (secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        secp256k1_context_static,
+        recoverable_signature->ctx,
         compact_sig,
         &recovery_id,
         &(recoverable_signature->sig)) != 1)
@@ -998,7 +1002,7 @@ RecoverableSignature_to_signature(VALUE self)
 
   // NOTE: This method cannot fail
   secp256k1_ecdsa_recoverable_signature_convert(
-    secp256k1_context_static,
+    recoverable_signature->ctx,
     &(signature->sig),
     &(recoverable_signature->sig));
 
@@ -1433,7 +1437,7 @@ Context_recoverable_signature_from_compact(
   );
 
   if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-        secp256k1_context_static,
+        context->ctx,
         &(recoverable_signature->sig),
         compact_sig,
         recovery_id) == 1)
@@ -1537,6 +1541,10 @@ Secp256k1_have_ecdh(VALUE module)
 
 void Init_rbsecp256k1(void)
 {
+  // Perform selftest to ensure secp256k1_static_context is valid. This will
+  // cause the program to abort if the selftest fails.
+  secp256k1_selftest();
+
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
   rb_define_singleton_method(
