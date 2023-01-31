@@ -1537,6 +1537,10 @@ Secp256k1_have_ecdh(VALUE module)
 
 void Init_rbsecp256k1(void)
 {
+  // Perform selftest to ensure secp256k1_static_context is valid. This will
+  // cause the program to abort if the selftest fails.
+  secp256k1_selftest();
+
   // Secp256k1
   Secp256k1_module = rb_define_module("Secp256k1");
   rb_define_singleton_method(
