@@ -2,11 +2,15 @@
 
 [![Spec](https://github.com/etscrivner/rbsecp256k1/actions/workflows/spec.yml/badge.svg?branch=master)](https://github.com/etscrivner/rbsecp256k1/actions/workflows/spec.yml) [![Gem Version](https://badge.fury.io/rb/rbsecp256k1.svg)](https://badge.fury.io/rb/rbsecp256k1) [![Maintainability](https://api.codeclimate.com/v1/badges/d4b6e27bfa00030ca412/maintainability)](https://codeclimate.com/github/etscrivner/rbsecp256k1/maintainability)
 
-Native extension gem for secp256k1 ECDSA. Wraps [libsecp256k1](https://github.com/bitcoin-core/secp256k1). In
-rbsecp256k1 3.0.0 and later libsecp256k1 is bundled with the gem.
+Native extension gem for secp256k1 ECDSA and Schnorr signatures. Wraps [libsecp256k1](https://github.com/bitcoin-core/secp256k1) without the need for FFI.
 
 * [Documentation](https://github.com/etscrivner/rbsecp256k1/blob/master/documentation/index.md)
 * [Examples](https://github.com/etscrivner/rbsecp256k1/blob/master/examples/README.md)
+
+### Features
+
+* Native extension gem wrapping [libsecp256k1](https://github.com/bitcoin-core/secp256k1), no FFI.
+* Schnorr signature support.
 
 ### Why wrap libsecp256k1?
 

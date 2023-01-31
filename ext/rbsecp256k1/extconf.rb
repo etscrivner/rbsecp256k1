@@ -4,6 +4,9 @@ require 'mini_portile2'
 require 'mkmf'
 require 'zip'
 
+# Enable the recovery module by default
+WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
+
 # Recipe for downloading and building libsecp256k1 as part of installation
 class Secp256k1Recipe < MiniPortile
   # Hard-coded URL for libsecp256k1 zipfile (Official release v0.2.0)
@@ -11,8 +14,6 @@ class Secp256k1Recipe < MiniPortile
 
   # Expected SHA-256 of the zipfile above (computed using sha256sum)
   LIBSECP256K1_SHA256 = '6ece280c0e6ea9d861051077c28a25b7f48800c43a4098a800b7d3b0c124e406'
-
-  WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
 
   def initialize
     super('libsecp256k1', '0.2.0')
@@ -105,7 +106,7 @@ end
 have_header('secp256k1.h')
 
 # Check if we have the libsecp256k1 recoverable signature header.
-have_header('secp256k1_recovery.h')
+have_header('secp256k1_recovery.h') if WITH_RECOVERY
 
 # Check if we have EC Diffie-Hellman functionality
 have_header('secp256k1_ecdh.h')
