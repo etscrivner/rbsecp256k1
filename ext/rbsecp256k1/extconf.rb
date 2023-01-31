@@ -101,7 +101,7 @@ else
   have_library("gmp")
 end
 
-# Check for the basic header
+# Sanity check for the basic library
 have_header('secp256k1.h')
 
 # Check if we have the libsecp256k1 recoverable signature header.
