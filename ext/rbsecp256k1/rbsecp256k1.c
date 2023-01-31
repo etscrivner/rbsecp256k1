@@ -949,7 +949,7 @@ RecoverableSignature_compact(VALUE self)
   );
 
   if (secp256k1_ecdsa_recoverable_signature_serialize_compact(
-        secp256k1_context_static,
+        recoverable_signature->ctx,
         compact_sig,
         &recovery_id,
         &(recoverable_signature->sig)) != 1)
@@ -998,7 +998,7 @@ RecoverableSignature_to_signature(VALUE self)
 
   // NOTE: This method cannot fail
   secp256k1_ecdsa_recoverable_signature_convert(
-    secp256k1_context_static,
+    recoverable_signature->ctx,
     &(signature->sig),
     &(recoverable_signature->sig));
 
@@ -1433,7 +1433,7 @@ Context_recoverable_signature_from_compact(
   );
 
   if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-        secp256k1_context_static,
+        context->ctx,
         &(recoverable_signature->sig),
         compact_sig,
         recovery_id) == 1)
