@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Eric Scrivner (@etscrivner)
+# SPDX-FileCopyrightText: 2026 Afri Blanck (@l5yth)
+# SPDX-License-Identifier: Unlicense
+
+version: 2
+updates:
+  - package-ecosystem: "bundler"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # Pinned to 0.78 until rufo replaces rubocop.
+      - dependency-name: "rubocop"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
