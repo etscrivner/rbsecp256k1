@@ -56,4 +56,16 @@ RSpec.describe "rbsecp256k1.gemspec" do
       expect(rubyzip).not_to be_satisfied_by(Gem::Version.new(version))
     end
   end
+
+  # LICENSE holds the Unlicense since 0cb6902 (2019-11-06); the gem must
+  # declare the same license and ship the file.
+  describe "license" do
+    it "declares the Unlicense" do
+      expect(gemspec.license).to eq("Unlicense")
+    end
+
+    it "packages LICENSE" do
+      expect(gemspec.files).to include("LICENSE")
+    end
+  end
 end
