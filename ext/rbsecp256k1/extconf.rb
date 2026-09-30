@@ -9,22 +9,22 @@ WITH_RECOVERY = ENV.fetch('WITH_RECOVERY', '1') == '1'
 
 # Recipe for downloading and building libsecp256k1 as part of installation
 class Secp256k1Recipe < MiniPortile
-  # Hard-coded URL for libsecp256k1 zipfile (Official release v0.2.0)
-  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/refs/tags/v0.2.0.zip'
+  # Hard-coded URL for libsecp256k1 zipfile (Official release v0.8.0)
+  LIBSECP256K1_ZIP_URL = 'https://github.com/bitcoin-core/secp256k1/archive/refs/tags/v0.8.0.zip'
 
   # Expected SHA-256 of the zipfile above (computed using sha256sum)
-  LIBSECP256K1_SHA256 = '6ece280c0e6ea9d861051077c28a25b7f48800c43a4098a800b7d3b0c124e406'
+  LIBSECP256K1_SHA256 = 'ecece6a1cec8bdecdccbf22e1ee65455feae1a5312913bd62c45bbdc912b442c'
 
   def initialize
-    super('libsecp256k1', '0.2.0')
+    super('libsecp256k1', '0.8.0')
     @tarball = File.join(Dir.pwd, "/ports/archives/libsecp256k1.zip")
     @files = ["file://#{@tarball}"]
     self.configure_options += [
       "--with-pic=yes"
     ]
 
-    # ECDH is enabled by default in release v0.2.0, but recovery still needs to
-    # be enabled manually.
+    # ECDH, extrakeys and schnorrsig are enabled by default in release v0.8.0,
+    # but recovery still needs to be enabled manually.
     configure_options << "--enable-module-recovery" if WITH_RECOVERY
   end
 
@@ -88,6 +88,9 @@ else
       "-Wall"
     ]
   )
+  # Since libsecp256k1 v0.4.0, consumers of the static library on Windows must
+  # define SECP256K1_STATIC before including secp256k1.h.
+  append_cflags("-DSECP256K1_STATIC") if RUBY_PLATFORM =~ /mingw|mswin/
   append_ldflags(
     [
       "-Wl,--no-as-needed"
