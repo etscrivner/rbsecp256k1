@@ -25,7 +25,7 @@ Gem::Specification.new do |s|
   # Dependencies required to build and run this gem
   s.add_dependency 'mini_portile2', '~> 2.8'
   s.add_dependency 'pkg-config', '~> 1.5'
-  s.add_dependency 'rubyzip', '~> 2.3'
+  s.add_dependency 'rubyzip', '~> 3.2'
 
   # Development dependencies
   s.add_development_dependency 'keccak', '~> 1.3'
