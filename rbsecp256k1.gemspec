@@ -9,14 +9,14 @@ Gem::Specification.new do |s|
   s.summary =
     'Native extension gem for secp256k1 ECDSA and Schnorr signatures. ' \
     'Wraps libsecp256k1 natively without any need for FFI.'
-  s.license = 'MIT'
+  s.license = 'Unlicense'
   s.authors = ['Eric Scrivner', 'Afri Blanck']
   s.homepage = 'https://github.com/etscrivner/rbsecp256k1'
 
   s.files = (
     Dir['lib/**/**.rb'] +
     Dir['documentation/**.md'] +
-    %w[ext/rbsecp256k1/rbsecp256k1.c ext/rbsecp256k1/extconf.rb Rakefile README.md]
+    %w[ext/rbsecp256k1/rbsecp256k1.c ext/rbsecp256k1/extconf.rb LICENSE Rakefile README.md]
   )
   s.require_paths = %w[ext lib]
 
