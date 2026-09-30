@@ -33,6 +33,9 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'rake-compiler', '~> 1.2'
   s.add_development_dependency 'rspec', '~> 3.8'
   s.add_development_dependency 'rubocop', '0.78'
-  s.add_development_dependency 'ruby_memcheck', '~> 1.2'
+  s.add_development_dependency "base64", "~> 0.3"
+  s.add_development_dependency "benchmark", "~> 0.5"
+  s.add_development_dependency "ostruct", "~> 0.6"
+  s.add_development_dependency 'ruby_memcheck', '~> 3.0'
   s.add_development_dependency 'yard', '~> 0.9'
 end
