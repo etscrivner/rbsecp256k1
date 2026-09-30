@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
     'Native extension gem for secp256k1 ECDSA and Schnorr signatures. ' \
     'Wraps libsecp256k1 natively without any need for FFI.'
   s.license = 'MIT'
-  s.authors = ['Eric Scrivner']
+  s.authors = ['Eric Scrivner', 'Afri Blanck']
   s.homepage = 'https://github.com/etscrivner/rbsecp256k1'
 
   s.files = (
@@ -25,7 +25,7 @@ Gem::Specification.new do |s|
   # Dependencies required to build and run this gem
   s.add_dependency 'mini_portile2', '~> 2.8'
   s.add_dependency 'pkg-config', '~> 1.5'
-  s.add_dependency 'rubyzip', '~> 3.2'
+  s.add_dependency 'rubyzip', '~> 3.4'
 
   # Development dependencies
   s.add_development_dependency "base64", "~> 0.3"
