@@ -18,6 +18,18 @@ initialization if given `context_randomization_bytes`. The
 32 bytes of random data, if not provided then the Context is not randomized and
 may be vulnerable to side-channel attacks.
 
+`dup` and `clone` create independently owned native contexts using
+`secp256k1_context_clone`. The original and copy can be used and collected
+independently. Copying preserves the source context state; it does not provide
+fresh randomization. Use `Context.create` for a newly randomized context.
+Normal Ruby copy behavior applies: `clone` preserves frozen state, while `dup`
+returns an unfrozen copy. Copying an uninitialized context raises
+`Secp256k1::Error`.
+
+Native operations on an allocated context that has not completed initialization raise
+`Secp256k1::Error`. Reinitializing an existing context also raises
+`Secp256k1::Error` and leaves the existing context usable.
+
 Class Methods
 -------------
 

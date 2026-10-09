@@ -18,6 +18,30 @@ Classes and Modules
 |                            | [RecoverableSignature](recoverable_signature.md) |
 |                            | [SchnorrSignature](schnorr_signature.md)         |
 
+Native object lifecycle
+-----------------------
+
+Create keys, signatures, and shared secrets through the documented parsing,
+key-generation, signing, and ECDH methods. Their classes do not support direct
+`new` or `allocate`; those calls raise `TypeError`, including on subclasses.
+Keys and signatures support `dup` and `clone` with independent native storage.
+This includes public, x-only public, and private keys, keypairs, ECDSA signatures,
+recoverable signatures, and Schnorr signatures. Copies retain Ruby instance
+variables; `clone` preserves singleton methods and frozen state, while `dup`
+returns an unfrozen copy. Recoverable signatures also clone their owned context.
+Copying private keys or keypairs creates an additional copy of secret material.
+Shared secrets continue to reject `dup` and `clone` with `TypeError`.
+`Context#dup` and `Context#clone` create independently owned contexts through
+libsecp256k1's context cloning API.
+Use `Context.create` when fresh randomization is desired.
+
+A context must complete initialization before native operations can run.
+Calling an operation on `Context.allocate`, or on a subclass instance whose
+initializer omits `super`, raises `Secp256k1::Error` with the message
+`context is not initialized`. Calling `initialize` again on an initialized
+context raises `Secp256k1::Error` with the message
+`context is already initialized`.
+
 Glossary
 --------
 
