@@ -113,6 +113,22 @@ static VALUE Secp256k1_SharedSecret_class;
 static VALUE Secp256k1_SchnorrSignature_class;
 #endif // HAVE_SECP256K1_SCHNORRSIG_H
 
+/* Ruby allocates an empty shell before initialize_copy. It must never be
+ * usable as a cryptographic value if a subclass skips the copy hook. */
+static void *
+CheckedTypedData_get(VALUE object, const rb_data_type_t *type)
+{
+  void *data = rb_check_typeddata(object, type);
+  if (data == NULL)
+  {
+    rb_raise(Secp256k1_Error_class, "native object is not initialized");
+  }
+  return data;
+}
+
+#define CheckedTypedData_Get_Struct(object, type, descriptor, result) \
+  ((result) = (type *)CheckedTypedData_get((object), (descriptor)))
+
 // Forward definitions for all structures
 typedef struct Context_dummy {
   secp256k1_context *ctx; // Context used by libsecp256k1 library
@@ -177,6 +193,44 @@ static const rb_data_type_t Context_DataType = {
   RUBY_TYPED_FREE_IMMEDIATELY
 };
 
+/* Context.allocate and subclasses can bypass initialize. Never pass their
+ * NULL context pointers into libsecp256k1. */
+static Context *
+Context_get(VALUE self)
+{
+  Context *context;
+  CheckedTypedData_Get_Struct(self, Context, &Context_DataType, context);
+  if (context->ctx == NULL)
+  {
+    rb_raise(Secp256k1_Error_class, "context is not initialized");
+  }
+  return context;
+}
+
+static VALUE
+Context_initialize_copy(VALUE self, VALUE other)
+{
+  Context *context;
+  Context *source;
+
+  if (self == other)
+  {
+    return self;
+  }
+  rb_obj_init_copy(self, other);
+  source = Context_get(other);
+  CheckedTypedData_Get_Struct(self, Context, &Context_DataType, context);
+  if (context->ctx != NULL)
+  {
+    rb_raise(Secp256k1_Error_class, "context is already initialized");
+  }
+
+  // The copy must own a distinct native allocation so either Ruby object can
+  // be collected without invalidating the other or double-freeing its context.
+  context->ctx = secp256k1_context_clone(source->ctx);
+  return self;
+}
+
 // PublicKey
 static void
 PublicKey_free(void *in_public_key)
@@ -213,6 +267,7 @@ static const rb_data_type_t XOnlyPublicKey_DataType = {
 static void
 PrivateKey_free(void *in_private_key)
 {
+  if (in_private_key == NULL) { return; }
   PrivateKey *private_key;
   private_key = (PrivateKey*)in_private_key;
 
@@ -271,6 +326,7 @@ static const rb_data_type_t Signature_DataType = {
 static void
 RecoverableSignature_free(void *in_recoverable_signature)
 {
+  if (in_recoverable_signature == NULL) { return; }
   RecoverableSignature *recoverable_signature = (
     (RecoverableSignature*)in_recoverable_signature
   );
@@ -436,7 +492,7 @@ XOnlyPublicKey_create_from_data(unsigned char *in_xonly_pubkey32)
   VALUE result;
 
   result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
-  TypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+  CheckedTypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
 
   if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_pubkey->pubkey, in_xonly_pubkey32) != 1)
   {
@@ -483,7 +539,7 @@ XOnlyPublicKey_serialized(VALUE self)
   XOnlyPublicKey* xonly_pubkey;
   unsigned char out[SERIALIZED_XONLY_PUBKEY_SIZE_BYTES];
 
-  TypedData_Get_Struct(self, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+  CheckedTypedData_Get_Struct(self, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
 
   if (secp256k1_xonly_pubkey_serialize(secp256k1_context_static, out, &xonly_pubkey->pubkey) != 1)
   {
@@ -506,8 +562,8 @@ XOnlyPublicKey_equals(VALUE self, VALUE other)
   XOnlyPublicKey *lhs;
   XOnlyPublicKey *rhs;
 
-  TypedData_Get_Struct(self, XOnlyPublicKey, &XOnlyPublicKey_DataType, lhs);
-  TypedData_Get_Struct(other, XOnlyPublicKey, &XOnlyPublicKey_DataType, rhs);
+  CheckedTypedData_Get_Struct(self, XOnlyPublicKey, &XOnlyPublicKey_DataType, lhs);
+  CheckedTypedData_Get_Struct(other, XOnlyPublicKey, &XOnlyPublicKey_DataType, rhs);
 
   if (secp256k1_xonly_pubkey_cmp(secp256k1_context_static, &lhs->pubkey, &rhs->pubkey) == 0)
   {
@@ -542,7 +598,7 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
   VALUE result;
 
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
-  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
   if (secp256k1_ec_pubkey_parse(secp256k1_context_static,
                                 &(public_key->pubkey),
@@ -590,7 +646,7 @@ PublicKey_uncompressed(VALUE self)
   size_t serialized_pubkey_len = UNCOMPRESSED_PUBKEY_SIZE_BYTES;
   unsigned char serialized_pubkey[UNCOMPRESSED_PUBKEY_SIZE_BYTES];
 
-  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
   secp256k1_ec_pubkey_serialize(secp256k1_context_static,
                                 serialized_pubkey,
@@ -613,7 +669,7 @@ PublicKey_compressed(VALUE self)
   size_t serialized_pubkey_len = COMPRESSED_PUBKEY_SIZE_BYTES;
   unsigned char serialized_pubkey[COMPRESSED_PUBKEY_SIZE_BYTES];
 
-  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
   secp256k1_ec_pubkey_serialize(secp256k1_context_static,
                                 serialized_pubkey,
@@ -636,10 +692,10 @@ PublicKey_to_xonly(VALUE self)
   XOnlyPublicKey *xonly_pubkey;
   VALUE result;
 
-  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, public_key);
 
   result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
-  TypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+  CheckedTypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
 
   if (secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static,
                                          &xonly_pubkey->pubkey,
@@ -674,8 +730,8 @@ PublicKey_equals(VALUE self, VALUE other)
   lhs_len = 33;
   rhs_len = 33;
 
-  TypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, lhs);
-  TypedData_Get_Struct(other, PublicKey, &PublicKey_DataType, rhs);
+  CheckedTypedData_Get_Struct(self, PublicKey, &PublicKey_DataType, lhs);
+  CheckedTypedData_Get_Struct(other, PublicKey, &PublicKey_DataType, rhs);
 
   secp256k1_ec_pubkey_serialize(
     secp256k1_context_static,
@@ -733,7 +789,7 @@ PrivateKey_create(unsigned char *in_private_key_data)
   }
 
   result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
-  TypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
+  CheckedTypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
   MEMCPY(private_key->data, in_private_key_data, char, 32);
 
   return result;
@@ -749,7 +805,7 @@ PrivateKey_data(VALUE self)
 {
   PrivateKey *private_key;
 
-  TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
+  CheckedTypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
 
   return(rb_str_new((char*)private_key->data, 32));
 }
@@ -795,8 +851,8 @@ PrivateKey_equals(VALUE self, VALUE other)
   PrivateKey *lhs;
   PrivateKey *rhs;
 
-  TypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, lhs);
-  TypedData_Get_Struct(other, PrivateKey, &PrivateKey_DataType, rhs);
+  CheckedTypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, lhs);
+  CheckedTypedData_Get_Struct(other, PrivateKey, &PrivateKey_DataType, rhs);
 
   if (memcmp(lhs->data, rhs->data, 32) == 0)
   {
@@ -816,6 +872,7 @@ KeyPair_alloc(VALUE klass)
   KeyPair *key_pair;
 
   key_pair = ALLOC(KeyPair);
+  MEMZERO(key_pair, KeyPair, 1);
 
   return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
 }
@@ -832,10 +889,10 @@ KeyPair_public_key(VALUE self)
   VALUE result;
   PublicKey *public_key;
 
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  CheckedTypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
 
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
-  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
   if (secp256k1_keypair_pub(secp256k1_context_static, &public_key->pubkey, &key_pair->keypair) == 0)
   {
@@ -859,10 +916,10 @@ KeyPair_xonly_public_key(VALUE self)
   VALUE result;
   XOnlyPublicKey *xonly_pubkey;
 
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  CheckedTypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
 
   result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
-  TypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+  CheckedTypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
 
   if (secp256k1_keypair_xonly_pub(secp256k1_context_static, &xonly_pubkey->pubkey, NULL, &key_pair->keypair) == 0)
   {
@@ -884,7 +941,7 @@ KeyPair_private_key(VALUE self)
   KeyPair *key_pair;
   unsigned char private_key_data[32];
 
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  CheckedTypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
 
   if (secp256k1_keypair_sec(secp256k1_context_static, private_key_data, &key_pair->keypair) == 0)
   {
@@ -910,8 +967,8 @@ KeyPair_equals(VALUE self, VALUE other)
   KeyPair *lhs;
   KeyPair *rhs;
 
-  TypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, lhs);
-  TypedData_Get_Struct(other, KeyPair, &KeyPair_DataType, rhs);
+  CheckedTypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, lhs);
+  CheckedTypedData_Get_Struct(other, KeyPair, &KeyPair_DataType, rhs);
 
   if (memcmp(&lhs->keypair, &rhs->keypair, sizeof(secp256k1_keypair)) == 0)
   {
@@ -963,7 +1020,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
   signature_data = (unsigned char*)StringValuePtr(in_compact_signature);
 
   signature_result = Signature_alloc(Secp256k1_Signature_class);
-  TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+  CheckedTypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static,
                                               &(signature->sig),
@@ -997,7 +1054,7 @@ Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
   signature_data = (unsigned char*)StringValuePtr(in_der_encoded_signature);
 
   signature_result = Signature_alloc(Secp256k1_Signature_class);
-  TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+  CheckedTypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_parse_der(secp256k1_context_static,
                                           &(signature->sig),
@@ -1024,7 +1081,7 @@ Signature_der_encoded(VALUE self)
   unsigned long der_signature_len;
   unsigned char der_signature[72];
 
-  TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
+  CheckedTypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   der_signature_len = 72;
   if (secp256k1_ecdsa_signature_serialize_der(secp256k1_context_static,
@@ -1054,7 +1111,7 @@ Signature_compact(VALUE self)
   Signature *signature;
   unsigned char compact_signature[COMPACT_SIG_SIZE_BYTES];
 
-  TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
+  CheckedTypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
   if (secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static,
                                                   compact_signature,
@@ -1090,9 +1147,9 @@ Signature_normalized(VALUE self)
   Signature *signature;
   Signature *normalized_signature;
 
-  TypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
+  CheckedTypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
   result_sig = Signature_alloc(Secp256k1_Signature_class);
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     result_sig, Signature, &Signature_DataType, normalized_signature
   );
 
@@ -1128,8 +1185,8 @@ Signature_equals(VALUE self, VALUE other)
   unsigned char lhs_compact[64];
   unsigned char rhs_compact[64];
 
-  TypedData_Get_Struct(self, Signature, &Signature_DataType, lhs);
-  TypedData_Get_Struct(other, Signature, &Signature_DataType, rhs);
+  CheckedTypedData_Get_Struct(self, Signature, &Signature_DataType, lhs);
+  CheckedTypedData_Get_Struct(other, Signature, &Signature_DataType, rhs);
 
   secp256k1_ecdsa_signature_serialize_compact(
     secp256k1_context_static, lhs_compact, &(lhs->sig)
@@ -1182,7 +1239,7 @@ RecoverableSignature_compact(VALUE self)
   int recovery_id;
   VALUE result;
 
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     self,
     RecoverableSignature,
     &RecoverableSignature_DataType,
@@ -1223,7 +1280,7 @@ RecoverableSignature_to_signature(VALUE self)
   Signature *signature;
   VALUE result;
 
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     self,
     RecoverableSignature,
     &RecoverableSignature_DataType,
@@ -1231,7 +1288,7 @@ RecoverableSignature_to_signature(VALUE self)
   );
 
   result = Signature_alloc(Secp256k1_Signature_class);
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     result,
     Signature,
     &Signature_DataType,
@@ -1271,7 +1328,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
     return Qnil;
   }
 
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     self,
     RecoverableSignature,
     &RecoverableSignature_DataType,
@@ -1280,7 +1337,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
   hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
-  TypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
 
   if (secp256k1_ecdsa_recover(recoverable_signature->ctx,
                               &(public_key->pubkey),
@@ -1310,10 +1367,10 @@ RecoverableSignature_equals(VALUE self, VALUE other)
   RecoverableSignature *lhs;
   RecoverableSignature *rhs;
 
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     self, RecoverableSignature, &RecoverableSignature_DataType, lhs
   );
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     other, RecoverableSignature, &RecoverableSignature_DataType, rhs
   );
 
@@ -1390,7 +1447,7 @@ SchnorrSignature_from_data(VALUE klass, VALUE in_data)
   schnorr_data = (unsigned char*)StringValuePtr(in_data);
 
   result = SchnorrSignature_alloc(Secp256k1_SchnorrSignature_class);
-  TypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, sig);
+  CheckedTypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, sig);
 
   memcpy(sig->sig, schnorr_data, SCHNORR_SIG_SIZE_BYTES);
 
@@ -1402,7 +1459,7 @@ SchnorrSignature_serialized(VALUE self)
 {
   SchnorrSignature *schnorr_sig;
 
-  TypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
+  CheckedTypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
 
   return rb_str_new((char*)schnorr_sig->sig, SCHNORR_SIG_SIZE_BYTES);
 }
@@ -1414,8 +1471,8 @@ SchnorrSignature_verify(VALUE self, VALUE in_message, VALUE in_xonly_pubkey)
   SchnorrSignature *schnorr_sig;
   unsigned char* msg;
 
-  TypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
-  TypedData_Get_Struct(in_xonly_pubkey, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
+  CheckedTypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
+  CheckedTypedData_Get_Struct(in_xonly_pubkey, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
   Check_Type(in_message, T_STRING);
 
   msg = (unsigned char*)StringValuePtr(in_message);
@@ -1433,8 +1490,8 @@ SchnorrSignature_equals(VALUE self, VALUE other)
   SchnorrSignature *lhs;
   SchnorrSignature *rhs;
 
-  TypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, lhs);
-  TypedData_Get_Struct(other, SchnorrSignature, &SchnorrSignature_DataType, rhs);
+  CheckedTypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, lhs);
+  CheckedTypedData_Get_Struct(other, SchnorrSignature, &SchnorrSignature_DataType, rhs);
 
   if (memcmp(lhs->sig, rhs->sig, SCHNORR_SIG_SIZE_BYTES) == 0)
   {
@@ -1481,6 +1538,7 @@ static VALUE
 Context_initialize(int argc, const VALUE* argv, VALUE self)
 {
   Context *context;
+  secp256k1_context *new_context;
   unsigned char *seed32;
   VALUE context_randomization_bytes;
   VALUE opts;
@@ -1492,11 +1550,12 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
     CONST_ID(kwarg_ids, "context_randomization_bytes");
   }
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-
-  context->ctx = secp256k1_context_create(
-    SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY
-  );
+  rb_check_frozen(self);
+  CheckedTypedData_Get_Struct(self, Context, &Context_DataType, context);
+  if (context->ctx != NULL)
+  {
+    rb_raise(Secp256k1_Error_class, "context is already initialized");
+  }
 
   // Handle optional second argument containing random bytes to use for
   // randomization. We pass ":" to rb_scan_args to say that we expect keyword
@@ -1523,13 +1582,21 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
         "context_randomization_bytes must be 32 bytes in length"
       );
     }
+  }
 
+  new_context = secp256k1_context_create(
+    SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY
+  );
+
+  if (!NIL_P(context_randomization_bytes))
+  {
     seed32 = (unsigned char*)StringValuePtr(context_randomization_bytes);
 
     // Randomize the context at initialization time rather than before calls so
     // the same context can be used across threads safely.
-    if (secp256k1_context_randomize(context->ctx, seed32) != 1)
+    if (secp256k1_context_randomize(new_context, seed32) != 1)
     {
+      secp256k1_context_destroy(new_context);
       rb_raise(
         Secp256k1_Error_class,
         "context randomization failed"
@@ -1537,6 +1604,7 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
     }
   }
 
+  context->ctx = new_context;
   return self;
 }
 
@@ -1557,7 +1625,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   unsigned char *private_key_data;
 
   Check_Type(in_private_key_data, T_STRING);
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  context = Context_get(self);
 
   if (RSTRING_LEN(in_private_key_data) != 32)
   {
@@ -1566,7 +1634,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   }
 
   result = KeyPair_alloc(Secp256k1_KeyPair_class);
-  TypedData_Get_Struct(result, KeyPair, &KeyPair_DataType, keypair);
+  CheckedTypedData_Get_Struct(result, KeyPair, &KeyPair_DataType, keypair);
 
   private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
 
@@ -1605,12 +1673,12 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
     return Qnil;
   }
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  TypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
+  context = Context_get(self);
+  CheckedTypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
   hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   signature_result = Signature_alloc(Secp256k1_Signature_class);
-  TypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+  CheckedTypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
  
   // Attempt to sign the hash of the given data
   if (SUCCESS(SignData(context->ctx,
@@ -1643,7 +1711,7 @@ Context_tagged_sha256(VALUE self, VALUE in_tag, VALUE in_message)
   Check_Type(in_tag, T_STRING);
   Check_Type(in_message, T_STRING);
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  context = Context_get(self);
 
   tag = (unsigned char*)StringValuePtr(in_tag);
   msg = (unsigned char*)StringValuePtr(in_message);
@@ -1683,9 +1751,9 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_hash32)
     rb_raise(Secp256k1_Error_class, "in_hash32 is not 32-bytes in length");
   }
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  TypedData_Get_Struct(in_pubkey, PublicKey, &PublicKey_DataType, public_key);
-  TypedData_Get_Struct(in_signature, Signature, &Signature_DataType, signature);
+  context = Context_get(self);
+  CheckedTypedData_Get_Struct(in_pubkey, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(in_signature, Signature, &Signature_DataType, signature);
 
   hash32 = (unsigned char*)StringValuePtr(in_hash32);
   
@@ -1729,14 +1797,14 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
     return Qnil;
   }
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  TypedData_Get_Struct(
+  context = Context_get(self);
+  CheckedTypedData_Get_Struct(
     in_private_key, PrivateKey, &PrivateKey_DataType, private_key
   );
   hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     result,
     RecoverableSignature,
     &RecoverableSignature_DataType,
@@ -1780,7 +1848,7 @@ Context_recoverable_signature_from_compact(
 
   Check_Type(in_compact_sig, T_STRING);
   Check_Type(in_recovery_id, T_FIXNUM);
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
+  context = Context_get(self);
 
   compact_sig = (unsigned char*)StringValuePtr(in_compact_sig);
   recovery_id = FIX2INT(in_recovery_id);
@@ -1798,7 +1866,7 @@ Context_recoverable_signature_from_compact(
   }
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     result,
     RecoverableSignature,
     &RecoverableSignature_DataType,
@@ -1843,12 +1911,12 @@ Context_ecdh(VALUE self, VALUE point, VALUE scalar)
   SharedSecret *shared_secret;
   VALUE result;
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  TypedData_Get_Struct(point, PublicKey, &PublicKey_DataType, public_key);
-  TypedData_Get_Struct(scalar, PrivateKey, &PrivateKey_DataType, private_key);
+  context = Context_get(self);
+  CheckedTypedData_Get_Struct(point, PublicKey, &PublicKey_DataType, public_key);
+  CheckedTypedData_Get_Struct(scalar, PrivateKey, &PrivateKey_DataType, private_key);
 
   result = SharedSecret_alloc(Secp256k1_SharedSecret_class);
-  TypedData_Get_Struct(
+  CheckedTypedData_Get_Struct(
     result, SharedSecret, &SharedSecret_DataType, shared_secret
   );
 
@@ -1883,8 +1951,8 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
   unsigned char sig[64];
   VALUE result;
 
-  TypedData_Get_Struct(self, Context, &Context_DataType, context);
-  TypedData_Get_Struct(in_keypair, KeyPair, &KeyPair_DataType, keypair);
+  context = Context_get(self);
+  CheckedTypedData_Get_Struct(in_keypair, KeyPair, &KeyPair_DataType, keypair);
 
   Check_Type(in_message, T_STRING);
 
@@ -1908,7 +1976,7 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
   }
 
   result = SchnorrSignature_alloc(Secp256k1_SchnorrSignature_class);
-  TypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
+  CheckedTypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
   memcpy(schnorr_sig->sig, sig, SCHNORR_SIG_SIZE_BYTES);
 
   return result;
@@ -1917,6 +1985,82 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
 #endif // HAVE_SECP256K1_SCHNORRSIG_H
 
 //
+/* Keep normal Ruby dup/clone machinery (ivars, subclass hooks, singleton
+ * methods and frozen state), while rejecting direct construction. The VM
+ * allocator exposes no native storage until initialize_copy succeeds. */
+static VALUE
+NativeValue_reject_construction(int argc, VALUE *argv, VALUE self)
+{
+  rb_raise(rb_eTypeError, "use a factory to create native objects");
+  return Qnil;
+}
+
+/* Upstream guarantees its key/signature value structs can be safely copied.
+ * These wrappers contain inline values only; owned pointers need a deep copy. */
+#define DEFINE_VALUE_COPY(Type) \
+static VALUE Type##_copy_alloc(VALUE klass) \
+{ \
+  return TypedData_Wrap_Struct(klass, &Type##_DataType, NULL); \
+} \
+static VALUE Type##_initialize_copy(VALUE self, VALUE other) \
+{ \
+  Type *source; \
+  Type *copy; \
+  if (self == other) { return self; } \
+  rb_obj_init_copy(self, other); \
+  CheckedTypedData_Get_Struct(other, Type, &Type##_DataType, source); \
+  if (rb_check_typeddata(self, &Type##_DataType) != NULL) \
+  { \
+    rb_raise(Secp256k1_Error_class, "native object is already initialized"); \
+  } \
+  copy = ALLOC(Type); \
+  *copy = *source; \
+  RTYPEDDATA_DATA(self) = copy; \
+  return self; \
+}
+
+DEFINE_VALUE_COPY(PublicKey)
+DEFINE_VALUE_COPY(XOnlyPublicKey)
+DEFINE_VALUE_COPY(PrivateKey)
+DEFINE_VALUE_COPY(KeyPair)
+DEFINE_VALUE_COPY(Signature)
+#ifdef HAVE_SECP256K1_SCHNORRSIG_H
+DEFINE_VALUE_COPY(SchnorrSignature)
+#endif
+
+#ifdef HAVE_SECP256K1_RECOVERY_H
+static VALUE
+RecoverableSignature_copy_alloc(VALUE klass)
+{
+  return TypedData_Wrap_Struct(klass, &RecoverableSignature_DataType, NULL);
+}
+
+static VALUE
+RecoverableSignature_initialize_copy(VALUE self, VALUE other)
+{
+  RecoverableSignature *source;
+  RecoverableSignature *copy;
+  if (self == other) { return self; }
+  rb_obj_init_copy(self, other);
+  CheckedTypedData_Get_Struct(other, RecoverableSignature, &RecoverableSignature_DataType, source);
+  if (rb_check_typeddata(self, &RecoverableSignature_DataType) != NULL)
+  {
+    rb_raise(Secp256k1_Error_class, "native object is already initialized");
+  }
+  copy = ALLOC(RecoverableSignature);
+  copy->sig = source->sig;
+  copy->ctx = secp256k1_context_clone(source->ctx);
+  RTYPEDDATA_DATA(self) = copy;
+  return self;
+}
+#endif
+
+#define ENABLE_VALUE_COPY(Type) \
+  rb_define_alloc_func(Secp256k1_##Type##_class, Type##_copy_alloc); \
+  rb_define_singleton_method(Secp256k1_##Type##_class, "allocate", NativeValue_reject_construction, -1); \
+  rb_define_method(Secp256k1_##Type##_class, "initialize", NativeValue_reject_construction, -1); \
+  rb_define_method(Secp256k1_##Type##_class, "initialize_copy", Type##_initialize_copy, 1)
+
 // Secp256k1 module methods
 //
 
@@ -2015,6 +2159,7 @@ void Init_rbsecp256k1(void)
   );
   rb_undef_alloc_func(Secp256k1_Context_class);
   rb_define_alloc_func(Secp256k1_Context_class, Context_alloc);
+  rb_define_method(Secp256k1_Context_class, "initialize_copy", Context_initialize_copy, 1);
   rb_define_method(Secp256k1_Context_class,
                    "initialize",
                    Context_initialize,
@@ -2036,12 +2181,13 @@ void Init_rbsecp256k1(void)
                    Context_verify,
                    3);
 
+  // Factories wrap initialized storage directly. Copy allocators create empty,
+  // checked shells for Ruby dup/clone; direct construction is rejected.
   // Secp256k1::KeyPair
   Secp256k1_KeyPair_class = rb_define_class_under(Secp256k1_module,
                                                   "KeyPair",
                                                   rb_cObject);
-  rb_undef_alloc_func(Secp256k1_KeyPair_class);
-  rb_define_alloc_func(Secp256k1_KeyPair_class, KeyPair_alloc);
+  ENABLE_VALUE_COPY(KeyPair);
   rb_define_method(Secp256k1_KeyPair_class, "public_key", KeyPair_public_key, 0);
   rb_define_method(Secp256k1_KeyPair_class, "private_key", KeyPair_private_key, 0);
   rb_define_method(Secp256k1_KeyPair_class, "xonly_public_key", KeyPair_xonly_public_key, 0);
@@ -2051,8 +2197,7 @@ void Init_rbsecp256k1(void)
   Secp256k1_PublicKey_class = rb_define_class_under(Secp256k1_module,
                                                     "PublicKey",
                                                     rb_cObject);
-  rb_undef_alloc_func(Secp256k1_PublicKey_class);
-  rb_define_alloc_func(Secp256k1_PublicKey_class, PublicKey_alloc);
+  ENABLE_VALUE_COPY(PublicKey);
   rb_define_method(Secp256k1_PublicKey_class,
                    "compressed",
                    PublicKey_compressed,
@@ -2078,8 +2223,7 @@ void Init_rbsecp256k1(void)
                                                          "XOnlyPublicKey",
                                                          rb_cObject);
 
-  rb_undef_alloc_func(Secp256k1_XOnlyPublicKey_class);
-  rb_define_alloc_func(Secp256k1_XOnlyPublicKey_class, XOnlyPublicKey_alloc);
+  ENABLE_VALUE_COPY(XOnlyPublicKey);
   rb_define_method(Secp256k1_XOnlyPublicKey_class,
                    "serialized",
                    XOnlyPublicKey_serialized,
@@ -2095,8 +2239,7 @@ void Init_rbsecp256k1(void)
   Secp256k1_PrivateKey_class = rb_define_class_under(
     Secp256k1_module, "PrivateKey", rb_cObject
   );
-  rb_undef_alloc_func(Secp256k1_PrivateKey_class);
-  rb_define_alloc_func(Secp256k1_PrivateKey_class, PrivateKey_alloc);
+  ENABLE_VALUE_COPY(PrivateKey);
   rb_define_method(Secp256k1_PrivateKey_class, "data", PrivateKey_data, 0);
   rb_define_method(Secp256k1_PrivateKey_class, "==", PrivateKey_equals, 1);
   rb_define_singleton_method(
@@ -2110,8 +2253,7 @@ void Init_rbsecp256k1(void)
   Secp256k1_Signature_class = rb_define_class_under(Secp256k1_module,
                                                     "Signature",
                                                     rb_cObject);
-  rb_undef_alloc_func(Secp256k1_Signature_class);
-  rb_define_alloc_func(Secp256k1_Signature_class, Signature_alloc);
+  ENABLE_VALUE_COPY(Signature);
   rb_define_method(Secp256k1_Signature_class,
                    "der_encoded",
                    Signature_der_encoded,
@@ -2148,11 +2290,7 @@ void Init_rbsecp256k1(void)
     "RecoverableSignature",
     rb_cObject
   );
-  rb_undef_alloc_func(Secp256k1_RecoverableSignature_class);
-  rb_define_alloc_func(
-    Secp256k1_RecoverableSignature_class,
-    RecoverableSignature_alloc
-  );
+  ENABLE_VALUE_COPY(RecoverableSignature);
   rb_define_method(
     Secp256k1_RecoverableSignature_class,
     "compact",
@@ -2200,7 +2338,6 @@ void Init_rbsecp256k1(void)
     rb_cObject
   );
   rb_undef_alloc_func(Secp256k1_SharedSecret_class);
-  rb_define_alloc_func(Secp256k1_SharedSecret_class, SharedSecret_alloc);
   rb_define_attr(Secp256k1_SharedSecret_class, "data", 1, 0);
 
   // Context EC Diffie-Hellman methods
@@ -2217,8 +2354,7 @@ void Init_rbsecp256k1(void)
     Secp256k1_module,
     "SchnorrSignature",
     rb_cObject);
-  rb_undef_alloc_func(Secp256k1_SchnorrSignature_class);
-  rb_define_alloc_func(Secp256k1_SchnorrSignature_class, SchnorrSignature_alloc);
+  ENABLE_VALUE_COPY(SchnorrSignature);
   rb_define_method(Secp256k1_SchnorrSignature_class, "serialized", SchnorrSignature_serialized, 0);
   rb_define_method(Secp256k1_SchnorrSignature_class, "verify", SchnorrSignature_verify, 2);
   rb_define_method(Secp256k1_SchnorrSignature_class, "==", SchnorrSignature_equals, 1);
