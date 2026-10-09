@@ -132,6 +132,18 @@ CheckedTypedData_get(VALUE object, const rb_data_type_t *type)
 #define CheckedTypedData_Get_Struct(object, type, descriptor, result) \
   ((result) = (type *)CheckedTypedData_get((object), (descriptor)))
 
+/* Failed factories remain discoverable through ObjectSpace until GC. Detach
+ * their invalid payload before raising, using the normal secret-wiping free
+ * callback. Subsequent access and copying then reject the empty shell. */
+static void
+NativeValue_invalidate(VALUE object)
+{
+  void *data = RTYPEDDATA_DATA(object);
+  const rb_data_type_t *type = RTYPEDDATA_TYPE(object);
+  RTYPEDDATA_DATA(object) = NULL;
+  if (data != NULL) { type->function.dfree(data); }
+}
+
 /* Binary inputs are checked as T_STRING before RSTRING_PTR is used. Borrow
  * their bytes only after Ruby allocations; native calls need no NUL terminator.
  * Native payloads do not move, but their Ruby owners must remain live across
@@ -549,14 +561,8 @@ RecoverableSignData(secp256k1_context *in_context,
 static VALUE
 XOnlyPublicKey_alloc(VALUE klass)
 {
-  VALUE result;
-  XOnlyPublicKey* xonly_pubkey;
-
-  xonly_pubkey = ALLOC(XOnlyPublicKey);
-  MEMZERO(xonly_pubkey, XOnlyPublicKey, 1);
-  result = TypedData_Wrap_Struct(klass, &XOnlyPublicKey_DataType, xonly_pubkey);
-
-  return result;
+  // Allocate the Ruby owner first; a failed wrapper allocation must not leak.
+  return rb_data_typed_object_zalloc(klass, sizeof(XOnlyPublicKey), &XOnlyPublicKey_DataType);
 }
 
 static VALUE
@@ -570,6 +576,7 @@ XOnlyPublicKey_create_from_data(VALUE in_data)
 
   if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_pubkey->pubkey, (unsigned char*)RSTRING_PTR(in_data)) != 1)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_DeserializationError_class, "invalid x-only public key data");
     return Qnil;
   }
@@ -651,14 +658,7 @@ XOnlyPublicKey_equals(VALUE self, VALUE other)
 static VALUE
 PublicKey_alloc(VALUE klass)
 {
-  VALUE result;
-  PublicKey *public_key;
-
-  public_key = ALLOC(PublicKey);
-  MEMZERO(public_key, PublicKey, 1);
-  result = TypedData_Wrap_Struct(klass, &PublicKey_DataType, public_key);
-
-  return result;
+  return rb_data_typed_object_zalloc(klass, sizeof(PublicKey), &PublicKey_DataType);
 }
 
 static VALUE
@@ -675,6 +675,7 @@ PublicKey_create_from_data(VALUE in_data)
                                 (unsigned char*)RSTRING_PTR(in_data),
                                 (size_t)RSTRING_LEN(in_data)) != 1)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_DeserializationError_class, "invalid public key data");
     return Qnil;
   }
@@ -765,6 +766,7 @@ PublicKey_to_xonly(VALUE self)
                                          NULL,
                                          &public_key->pubkey) != 1)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "failed to convert pubkey to x-only pubkey");
     return Qnil;
   }
@@ -828,14 +830,7 @@ PublicKey_equals(VALUE self, VALUE other)
 static VALUE
 PrivateKey_alloc(VALUE klass)
 {
-  VALUE new_instance;
-  PrivateKey *private_key;
-
-  private_key = ALLOC(PrivateKey);
-  MEMZERO(private_key, PrivateKey, 1);
-  new_instance = TypedData_Wrap_Struct(klass, &PrivateKey_DataType, private_key);
-
-  return new_instance;
+  return rb_data_typed_object_zalloc(klass, sizeof(PrivateKey), &PrivateKey_DataType);
 }
 
 /* Internal-only method for creating a private key from secret data */
@@ -933,12 +928,7 @@ PrivateKey_equals(VALUE self, VALUE other)
 static VALUE
 KeyPair_alloc(VALUE klass)
 {
-  KeyPair *key_pair;
-
-  key_pair = ALLOC(KeyPair);
-  MEMZERO(key_pair, KeyPair, 1);
-
-  return TypedData_Wrap_Struct(klass, &KeyPair_DataType, key_pair);
+  return rb_data_typed_object_zalloc(klass, sizeof(KeyPair), &KeyPair_DataType);
 }
 
 /**
@@ -960,6 +950,7 @@ KeyPair_public_key(VALUE self)
 
   if (secp256k1_keypair_pub(secp256k1_context_static, &public_key->pubkey, &key_pair->keypair) == 0)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "failed to derive public key from keypair");
     return Qnil;
   }
@@ -988,6 +979,7 @@ KeyPair_xonly_public_key(VALUE self)
 
   if (secp256k1_keypair_xonly_pub(secp256k1_context_static, &xonly_pubkey->pubkey, NULL, &key_pair->keypair) == 0)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "failed to derive x-only public key from keypair");
     return Qnil;
   }
@@ -1008,26 +1000,27 @@ KeyPair_private_key(VALUE self)
   PrivateKey *private_key;
   VALUE result;
 
-  // Extract directly into owned storage instead of leaving a stack copy of
-  // the secret behind. Allocate before obtaining the source native pointer.
-  result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
+  // Validate the source before publishing an output object. Keep its owner
+  // live across allocation while extracting directly into owned secret storage.
   CheckedTypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
   CheckedTypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
 
   if (secp256k1_keypair_sec(secp256k1_context_static, private_key->data, &key_pair->keypair) == 0)
   {
-    explicit_bzero(private_key->data, sizeof(private_key->data));
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "failed to derive private key from keypair");
     return Qnil;
   }
 
   if (secp256k1_ec_seckey_verify(secp256k1_context_static, private_key->data) != 1)
   {
-    explicit_bzero(private_key->data, sizeof(private_key->data));
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "invalid private key data");
     return Qnil;
   }
 
+  RB_GC_GUARD(self);
   return result;
 }
 
@@ -1064,14 +1057,7 @@ KeyPair_equals(VALUE self, VALUE other)
 static VALUE
 Signature_alloc(VALUE klass)
 {
-  VALUE new_instance;
-  Signature *signature;
-
-  signature = ALLOC(Signature);
-  MEMZERO(signature, Signature, 1);
-  new_instance = TypedData_Wrap_Struct(klass, &Signature_DataType, signature);
-
-  return new_instance;
+  return rb_data_typed_object_zalloc(klass, sizeof(Signature), &Signature_DataType);
 }
 
 /**
@@ -1104,6 +1090,7 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
                                               &(signature->sig),
                                               signature_data) != 1)
   {
+    NativeValue_invalidate(signature_result);
     rb_raise(Secp256k1_DeserializationError_class, "invalid compact signature");
     return Qnil;
   }
@@ -1138,6 +1125,7 @@ Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
                                           signature_data,
                                           RSTRING_LEN(in_der_encoded_signature)) != 1)
   {
+    NativeValue_invalidate(signature_result);
     rb_raise(Secp256k1_DeserializationError_class, "invalid DER encoded signature");
     return Qnil;
   }
@@ -1290,16 +1278,7 @@ Signature_equals(VALUE self, VALUE other)
 static VALUE
 RecoverableSignature_alloc(VALUE klass)
 {
-  VALUE new_instance;
-  RecoverableSignature *recoverable_signature;
-
-  recoverable_signature = ALLOC(RecoverableSignature);
-  MEMZERO(recoverable_signature, RecoverableSignature, 1);
-  new_instance = TypedData_Wrap_Struct(
-    klass, &RecoverableSignature_DataType, recoverable_signature
-  );
-
-  return new_instance;
+  return rb_data_typed_object_zalloc(klass, sizeof(RecoverableSignature), &RecoverableSignature_DataType);
 }
 
 /**
@@ -1427,6 +1406,7 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
     return result;
   }
 
+  NativeValue_invalidate(result);
   rb_raise(Secp256k1_DeserializationError_class, "unable to recover public key");
 }
 
@@ -1477,16 +1457,7 @@ RecoverableSignature_equals(VALUE self, VALUE other)
 static VALUE
 SharedSecret_alloc(VALUE klass)
 {
-  VALUE new_instance;
-  SharedSecret *shared_secret;
-
-  shared_secret = ALLOC(SharedSecret);
-  MEMZERO(shared_secret, SharedSecret, 1);
-  new_instance = TypedData_Wrap_Struct(
-  klass, &SharedSecret_DataType, shared_secret
-  );
-
-  return new_instance;
+  return rb_data_typed_object_zalloc(klass, sizeof(SharedSecret), &SharedSecret_DataType);
 }
 
 #endif // HAVE_SECP256K1_ECDH_H
@@ -1500,14 +1471,7 @@ SharedSecret_alloc(VALUE klass)
 static VALUE
 SchnorrSignature_alloc(VALUE klass)
 {
-  VALUE new_instance;
-  SchnorrSignature *schnorr_sig;
-
-  schnorr_sig = ALLOC(SchnorrSignature);
-  MEMZERO(schnorr_sig, SchnorrSignature, 1);
-  new_instance = TypedData_Wrap_Struct(klass, &SchnorrSignature_DataType, schnorr_sig);
-
-  return new_instance;
+  return rb_data_typed_object_zalloc(klass, sizeof(SchnorrSignature), &SchnorrSignature_DataType);
 }
 
 static VALUE
@@ -1593,15 +1557,7 @@ SchnorrSignature_equals(VALUE self, VALUE other)
 static VALUE
 Context_alloc(VALUE klass)
 {
-  VALUE new_instance;
-  Context *context;
-
-  context = ALLOC(Context);
-  MEMZERO(context, Context, 1);
-
-  new_instance = TypedData_Wrap_Struct(klass, &Context_DataType, context);
-
-  return new_instance;
+  return rb_data_typed_object_zalloc(klass, sizeof(Context), &Context_DataType);
 }
 
 /**
@@ -1722,6 +1678,7 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
 
   if (secp256k1_keypair_create(context->ctx, &keypair->keypair, private_key_data) == 0)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "invalid secret when attempting to create keypair");
   }
 
@@ -1774,6 +1731,7 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
     return signature_result;
   }
 
+  NativeValue_invalidate(signature_result);
   rb_raise(Secp256k1_Error_class, "unable to compute signature");
   return Qnil;
 }
@@ -1907,6 +1865,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
     return result;
   }
 
+  NativeValue_invalidate(result);
   rb_raise(Secp256k1_Error_class, "unable to compute recoverable signature");
   return Qnil;
 }
@@ -1971,6 +1930,7 @@ Context_recoverable_signature_from_compact(
     return result;
   }
   
+  NativeValue_invalidate(result);
   rb_raise(Secp256k1_DeserializationError_class, "unable to parse recoverable signature");
   return Qnil;
 }
@@ -2015,6 +1975,7 @@ Context_ecdh(VALUE self, VALUE point, VALUE scalar)
                      NULL,
                      NULL) != 1)
   {
+    NativeValue_invalidate(result);
     rb_raise(Secp256k1_Error_class, "invalid scalar provided to ecdh");
     return Qnil;
   }
