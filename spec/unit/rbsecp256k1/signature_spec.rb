@@ -41,6 +41,24 @@ RSpec.describe Secp256k1::Signature do
   end
 
   describe '#der_encoded' do
+    [
+      ['01'.rjust(64, '0'), '01'.rjust(64, '0'), 8],
+      ['7f' * 32, '7f' * 32, 70],
+      ['80' + ('00' * 31), '7f' * 32, 71],
+      ['80' + ('00' * 31), '80' + ('00' * 31), 72]
+    ].each do |r, s, length|
+      it "round-trips a #{length}-byte DER encoding without truncation or trailing bytes" do
+        compact = [r + s].pack('H*')
+        value = Secp256k1::Signature.from_compact(compact)
+        encoded = value.der_encoded
+
+        expect(encoded.bytesize).to eq(length)
+        expect(encoded.getbyte(1)).to eq(length - 2)
+        expect(Secp256k1::Signature.from_der_encoded(encoded).compact).to eq(compact)
+        expect(value.der_encoded).to eq(encoded)
+      end
+    end
+
     it 'returns a valid DER encoded signature' do
       der_encoded = signature.der_encoded
 
