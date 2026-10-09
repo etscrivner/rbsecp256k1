@@ -3,7 +3,8 @@
 Secp256k1::SchnorrSignature
 ===========================
 
-Secp256k1::SchnorrSignature represents an Schnorr signature signing a 32-byte message.
+Secp256k1::SchnorrSignature represents a 64-byte Schnorr signature of a message
+of any byte length, including zero.
 
 Class Methods
 -------------
@@ -24,6 +25,9 @@ Returns the 64-byte binary `String` of the serialized Schnorr signature.
 
 Returns `true` if the schnorr signature is a valid signing of `msg` with the
 private key for `xonly_pubkey`, `false` otherwise.
+
+`msg` must be a Ruby `String` containing the exact bytes passed to signing.
+It may have any byte length, including zero. No implicit hashing is performed.
 
 #### ==(other)
 

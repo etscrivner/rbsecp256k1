@@ -43,7 +43,7 @@ of a piece of data.
 **[RecoverableSignature](recoverable_signature.md)** is a recoverable ECDSA signature of the SHA-256 message
 hash of a piece of data.
 
-**[SchnorrSignature](schnorr_signature.md)** is a Schnorr signature of a 32-byte message.
+**[SchnorrSignature](schnorr_signature.md)** is a 64-byte Schnorr signature of a message of any byte length.
 
 Examples
 --------
@@ -243,6 +243,19 @@ schnorr_sig.verify(message, key_pair.xonly_public_key)
 
 schnorr_sig.serialized
 => "\x16\xEF\x04\xB0JP\xE9\x90\xC2\xB1\xE6-l\xDB\x1D\xAE\xAAc\xBF@9s\x02\xC2\xD5[\xFB\x19Q\xFAI^Hj\xD1)\xBE\xEA\xA5!a\xAD\xBEO\xCE7\x9Em\x13;\xE8R\x8A\x81$\nv\xF4\xD3\xB25\xA9\xF9\xC0"
+```
+
+Messages can also be signed directly, including empty strings. No implicit
+hashing, padding, or truncation is performed; use the same bytes for verification.
+The tagged hash above is an explicit application choice.
+
+```ruby
+message = 'a message of any byte length'.b
+signature = context.sign_schnorr(key_pair, message)
+signature.verify(message, key_pair.xonly_public_key)
+# => true
+signature.serialized.bytesize
+# => 64
 ```
 
 ### 4. Load a Schnorr signature from binary serialized version

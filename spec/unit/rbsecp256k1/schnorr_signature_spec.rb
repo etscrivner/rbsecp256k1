@@ -37,6 +37,107 @@ if Secp256k1.have_schnorr?
       end
     end
 
+    describe 'Schnorr signing edge cases' do
+      let(:key_pair) { context.key_pair_from_private_key([('00' * 31) + '03'].pack('H*')) }
+      let(:public_key) { key_pair.xonly_public_key }
+      let(:auxrand) { "\x00" * 32 }
+
+      %i[sign_schnorr sign_schnorr_custom].each do |method|
+        context "using #{method}" do
+          let(:sign_message) do
+            lambda do |message|
+              arguments = [key_pair, message]
+              arguments << auxrand if method == :sign_schnorr_custom
+              context.public_send(method, *arguments)
+            end
+          end
+
+          it 'includes bytes after an embedded null byte' do
+            message = "prefix\x00suffix".b
+            signature = sign_message.call(message)
+
+            expect(signature.verify(message, public_key)).to be true
+            expect(signature.verify('prefix', public_key)).to be false
+            expect(signature.verify("prefix\x00changed".b, public_key)).to be false
+          end
+
+          it 'signs multibyte strings using their bytes rather than character count' do
+            # Sixteen UTF-8 characters occupy 32 bytes.
+            message = "\u00e9" * 16
+            signature = sign_message.call(message)
+
+            expect(message.length).to eq(16)
+            expect(message.bytesize).to eq(32)
+            expect(signature.verify(message.b, public_key)).to be true
+            expect(signature.verify(message.b.byteslice(0, message.length), public_key)).to be false
+          end
+
+          [nil, 123, []].each do |message|
+            it "rejects a #{message.class} message" do
+              expect { sign_message.call(message) }.to raise_error(TypeError)
+            end
+          end
+        end
+      end
+
+      describe 'auxiliary randomness' do
+        [0, 1, 17, 32, 100].each do |length|
+          it "treats nil as zero randomness for a #{length}-byte message" do
+            message = 'a' * length
+            signature = context.sign_schnorr_custom(key_pair, message, nil)
+            zero_signature = context.sign_schnorr_custom(key_pair, message, auxrand)
+
+            expect(signature).to eq(zero_signature)
+            expect(signature.verify(message, public_key)).to be true
+          end
+        end
+
+        [0, 31, 33].each do |length|
+          it "rejects #{length} bytes of auxiliary randomness" do
+            expect { context.sign_schnorr_custom(key_pair, 'message', 'a' * length) }
+              .to raise_error(Secp256k1::Error, 'schnorr signing auxrand must be 32-bytes in length')
+          end
+        end
+
+        [false, 123, []].each do |randomness|
+          it "rejects #{randomness.class} auxiliary randomness" do
+            expect { context.sign_schnorr_custom(key_pair, 'message', randomness) }.to raise_error(TypeError)
+          end
+        end
+
+        it 'accepts exactly 32 bytes of multibyte auxiliary randomness' do
+          randomness = "\u00e9" * 16
+          signature = context.sign_schnorr_custom(key_pair, 'message', randomness)
+
+          expect(signature).to eq(context.sign_schnorr_custom(key_pair, 'message', randomness.b))
+          expect(signature.verify('message', public_key)).to be true
+        end
+      end
+
+      describe 'verification rejects altered inputs' do
+        let(:message) { 'message'.b }
+        let(:signature) { context.sign_schnorr_custom(key_pair, message, auxrand) }
+
+        it 'rejects a changed message' do
+          expect(signature.verify('changed', public_key)).to be false
+        end
+
+        it 'rejects a changed signature' do
+          changed = signature.serialized.dup
+          changed.setbyte(63, changed.getbyte(63) ^ 1)
+          altered_signature = Secp256k1::SchnorrSignature.from_data(changed)
+
+          expect(altered_signature.verify(message, public_key)).to be false
+        end
+
+        it 'rejects a different public key' do
+          other_key = context.key_pair_from_private_key([('00' * 31) + '04'].pack('H*'))
+
+          expect(signature.verify(message, other_key.xonly_public_key)).to be false
+        end
+      end
+    end
+
     describe '.from_data' do
       it 'correctly loads signature from data' do
         sig = Secp256k1::SchnorrSignature.from_data(example_sig_data1)

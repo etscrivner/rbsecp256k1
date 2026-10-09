@@ -26,7 +26,11 @@ module Secp256k1
       key_pair_from_private_key(SecureRandom.random_bytes(32))
     end
 
-    # Create Schnorr signature generating auxrand.
+    # Sign message bytes directly with fresh 32-byte auxiliary randomness.
+    # No implicit hashing, padding, or truncation is performed.
+    #
+    # @param keypair [Secp256k1::KeyPair] key pair used for signing
+    # @param message [String] message of any byte length, including zero
     #
     # @return [Secp256k1::SchnorrSignature] schnorr signature
     def sign_schnorr(keypair, message)
