@@ -592,7 +592,7 @@ PublicKey_alloc(VALUE klass)
 
 static VALUE
 PublicKey_create_from_data(unsigned char *in_public_key_data,
-                           unsigned int in_public_key_data_len)
+                           size_t in_public_key_data_len)
 {
   PublicKey *public_key;
   VALUE result;
@@ -630,7 +630,7 @@ PublicKey_from_data(VALUE klass, VALUE in_public_key_data)
   public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
   return PublicKey_create_from_data(
     public_key_data,
-    (int)RSTRING_LEN(in_public_key_data)
+    (size_t)RSTRING_LEN(in_public_key_data)
   );
 }
 
@@ -1078,12 +1078,11 @@ Signature_der_encoded(VALUE self)
 {
   // TODO: Cache value after first computation
   Signature *signature;
-  unsigned long der_signature_len;
   unsigned char der_signature[72];
+  size_t der_signature_len = sizeof(der_signature);
 
   CheckedTypedData_Get_Struct(self, Signature, &Signature_DataType, signature);
 
-  der_signature_len = 72;
   if (secp256k1_ecdsa_signature_serialize_der(secp256k1_context_static,
                                               der_signature,
                                               &der_signature_len,
@@ -1096,7 +1095,8 @@ Signature_der_encoded(VALUE self)
     return Qnil;
   }
 
-  return rb_str_new((char*)der_signature, der_signature_len);
+  // The serializer's output length is bounded by the 72-byte stack buffer.
+  return rb_str_new((char*)der_signature, (long)der_signature_len);
 }
 
 /**

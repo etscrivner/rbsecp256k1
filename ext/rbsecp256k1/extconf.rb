@@ -105,6 +105,9 @@ else
   have_library("gmp")
 end
 
+# Reject ABI-incompatible pointer arguments when the compiler supports it.
+append_cflags('-Werror=incompatible-pointer-types')
+
 # Sanity check for the basic library
 have_header('secp256k1.h')
 
