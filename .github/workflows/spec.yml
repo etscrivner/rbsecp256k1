@@ -10,6 +10,18 @@ on:
       - master
 
 jobs:
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+        bundler-cache: true
+    - name: Install native build dependencies
+      run: sudo apt-get update && sudo apt-get install -y build-essential automake libtool pkg-config libgmp-dev
+    - name: AddressSanitizer and UndefinedBehaviorSanitizer
+      run: bash .github/scripts/sanitizers.sh
   test:
     runs-on: ${{ matrix.os }}
     strategy:
