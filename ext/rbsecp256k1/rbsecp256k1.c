@@ -132,6 +132,11 @@ CheckedTypedData_get(VALUE object, const rb_data_type_t *type)
 #define CheckedTypedData_Get_Struct(object, type, descriptor, result) \
   ((result) = (type *)CheckedTypedData_get((object), (descriptor)))
 
+/* Binary inputs are checked as T_STRING before RSTRING_PTR is used. Borrow
+ * their bytes only after Ruby allocations; native calls need no NUL terminator.
+ * Native payloads do not move, but their Ruby owners must remain live across
+ * allocations. Keep RB_GC_GUARD after the last dependent pointer use. */
+
 // Forward definitions for all structures
 typedef struct Context_dummy {
   secp256k1_context *ctx; // Context used by libsecp256k1 library
@@ -552,7 +557,7 @@ XOnlyPublicKey_alloc(VALUE klass)
 }
 
 static VALUE
-XOnlyPublicKey_create_from_data(unsigned char *in_xonly_pubkey32)
+XOnlyPublicKey_create_from_data(VALUE in_data)
 {
   XOnlyPublicKey *xonly_pubkey;
   VALUE result;
@@ -560,7 +565,7 @@ XOnlyPublicKey_create_from_data(unsigned char *in_xonly_pubkey32)
   result = XOnlyPublicKey_alloc(Secp256k1_XOnlyPublicKey_class);
   CheckedTypedData_Get_Struct(result, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
 
-  if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_pubkey->pubkey, in_xonly_pubkey32) != 1)
+  if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_pubkey->pubkey, (unsigned char*)RSTRING_PTR(in_data)) != 1)
   {
     rb_raise(Secp256k1_DeserializationError_class, "invalid x-only public key data");
     return Qnil;
@@ -580,8 +585,6 @@ XOnlyPublicKey_create_from_data(unsigned char *in_xonly_pubkey32)
 static VALUE
 XOnlyPublicKey_from_data(VALUE klass, VALUE in_xonly_public_key_serialized)
 {
-  unsigned char *xonly_pubkey_data;
-
   Check_Type(in_xonly_public_key_serialized, T_STRING);
   if (RSTRING_LEN(in_xonly_public_key_serialized) != 32)
   {
@@ -589,8 +592,7 @@ XOnlyPublicKey_from_data(VALUE klass, VALUE in_xonly_public_key_serialized)
     return Qnil;
   }
 
-  xonly_pubkey_data = (unsigned char*)StringValuePtr(in_xonly_public_key_serialized);
-  return XOnlyPublicKey_create_from_data(xonly_pubkey_data);
+  return XOnlyPublicKey_create_from_data(in_xonly_public_key_serialized);
 }
 
 /**
@@ -657,8 +659,7 @@ PublicKey_alloc(VALUE klass)
 }
 
 static VALUE
-PublicKey_create_from_data(unsigned char *in_public_key_data,
-                           size_t in_public_key_data_len)
+PublicKey_create_from_data(VALUE in_data)
 {
   PublicKey *public_key;
   VALUE result;
@@ -668,8 +669,8 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
 
   if (secp256k1_ec_pubkey_parse(secp256k1_context_static,
                                 &(public_key->pubkey),
-                                in_public_key_data,
-                                in_public_key_data_len) != 1)
+                                (unsigned char*)RSTRING_PTR(in_data),
+                                (size_t)RSTRING_LEN(in_data)) != 1)
   {
     rb_raise(Secp256k1_DeserializationError_class, "invalid public key data");
     return Qnil;
@@ -689,15 +690,8 @@ PublicKey_create_from_data(unsigned char *in_public_key_data,
 static VALUE
 PublicKey_from_data(VALUE klass, VALUE in_public_key_data)
 {
-  unsigned char *public_key_data;
-
   Check_Type(in_public_key_data, T_STRING);
-
-  public_key_data = (unsigned char*)StringValuePtr(in_public_key_data);
-  return PublicKey_create_from_data(
-    public_key_data,
-    (size_t)RSTRING_LEN(in_public_key_data)
-  );
+  return PublicKey_create_from_data(in_public_key_data);
 }
 
 /**
@@ -772,6 +766,7 @@ PublicKey_to_xonly(VALUE self)
     return Qnil;
   }
 
+  RB_GC_GUARD(self);
   return result;
 }
 
@@ -842,13 +837,13 @@ PrivateKey_alloc(VALUE klass)
 
 /* Internal-only method for creating a private key from secret data */
 static VALUE
-PrivateKey_create(unsigned char *in_private_key_data)
+PrivateKey_create(VALUE in_private_key_data)
 {
   PrivateKey *private_key;
   VALUE result;
 
   if (secp256k1_ec_seckey_verify(secp256k1_context_static,
-                                 in_private_key_data) != 1)
+                                 (unsigned char*)RSTRING_PTR(in_private_key_data)) != 1)
   {
     rb_raise(Secp256k1_Error_class, "invalid private key data");
     return Qnil;
@@ -856,7 +851,7 @@ PrivateKey_create(unsigned char *in_private_key_data)
 
   result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
   CheckedTypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
-  MEMCPY(private_key->data, in_private_key_data, char, 32);
+  MEMCPY(private_key->data, RSTRING_PTR(in_private_key_data), char, 32);
 
   return result;
 }
@@ -870,10 +865,13 @@ static VALUE
 PrivateKey_data(VALUE self)
 {
   PrivateKey *private_key;
+  VALUE result;
 
   CheckedTypedData_Get_Struct(self, PrivateKey, &PrivateKey_DataType, private_key);
 
-  return(rb_str_new((char*)private_key->data, 32));
+  result = rb_str_new((char*)private_key->data, 32);
+  RB_GC_GUARD(self);
+  return result;
 }
 
 /**
@@ -887,8 +885,6 @@ PrivateKey_data(VALUE self)
 static VALUE
 PrivateKey_from_data(VALUE klass, VALUE in_private_key_data)
 {
-  unsigned char *private_key_data;
-
   Check_Type(in_private_key_data, T_STRING);
   if (RSTRING_LEN(in_private_key_data) != 32)
   {
@@ -899,8 +895,7 @@ PrivateKey_from_data(VALUE klass, VALUE in_private_key_data)
     return Qnil;
   }
 
-  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
-  return PrivateKey_create(private_key_data);
+  return PrivateKey_create(in_private_key_data);
 }
 
 /**
@@ -966,6 +961,7 @@ KeyPair_public_key(VALUE self)
     return Qnil;
   }
 
+  RB_GC_GUARD(self);
   return result;
 }
 
@@ -993,6 +989,7 @@ KeyPair_xonly_public_key(VALUE self)
     return Qnil;
   }
 
+  RB_GC_GUARD(self);
   return result;
 }
 
@@ -1096,10 +1093,9 @@ Signature_from_compact(VALUE klass, VALUE in_compact_signature)
     rb_raise(Secp256k1_Error_class, "compact signature must be 64 bytes");
   }
 
-  signature_data = (unsigned char*)StringValuePtr(in_compact_signature);
-
   signature_result = Signature_alloc(Secp256k1_Signature_class);
   CheckedTypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+  signature_data = (unsigned char*)RSTRING_PTR(in_compact_signature);
 
   if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static,
                                               &(signature->sig),
@@ -1130,10 +1126,9 @@ Signature_from_der_encoded(VALUE klass, VALUE in_der_encoded_signature)
 
   Check_Type(in_der_encoded_signature, T_STRING);
 
-  signature_data = (unsigned char*)StringValuePtr(in_der_encoded_signature);
-
   signature_result = Signature_alloc(Secp256k1_Signature_class);
   CheckedTypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+  signature_data = (unsigned char*)RSTRING_PTR(in_der_encoded_signature);
 
   if (secp256k1_ecdsa_signature_parse_der(secp256k1_context_static,
                                           &(signature->sig),
@@ -1241,6 +1236,7 @@ Signature_normalized(VALUE self)
     was_normalized = Qtrue;
   }
 
+  RB_GC_GUARD(self);
   result = rb_ary_new2(2);
   rb_ary_push(result, was_normalized);
   rb_ary_push(result, result_sig);
@@ -1380,6 +1376,7 @@ RecoverableSignature_to_signature(VALUE self)
     &(signature->sig),
     &(recoverable_signature->sig));
 
+  RB_GC_GUARD(self);
   return result;
 }
 
@@ -1413,16 +1410,17 @@ RecoverableSignature_recover_public_key(VALUE self, VALUE in_hash32)
     &RecoverableSignature_DataType,
     recoverable_signature
   );
-  hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   result = PublicKey_alloc(Secp256k1_PublicKey_class);
   CheckedTypedData_Get_Struct(result, PublicKey, &PublicKey_DataType, public_key);
+  hash32 = (unsigned char*)RSTRING_PTR(in_hash32);
 
   if (secp256k1_ecdsa_recover(recoverable_signature->ctx,
                               &(public_key->pubkey),
                               &(recoverable_signature->sig),
                               hash32) == 1)
   {
+    RB_GC_GUARD(self);
     return result;
   }
 
@@ -1523,10 +1521,9 @@ SchnorrSignature_from_data(VALUE klass, VALUE in_data)
     return Qnil;
   }
 
-  schnorr_data = (unsigned char*)StringValuePtr(in_data);
-
   result = SchnorrSignature_alloc(Secp256k1_SchnorrSignature_class);
   CheckedTypedData_Get_Struct(result, SchnorrSignature, &SchnorrSignature_DataType, sig);
+  schnorr_data = (unsigned char*)RSTRING_PTR(in_data);
 
   memcpy(sig->sig, schnorr_data, SCHNORR_SIG_SIZE_BYTES);
 
@@ -1537,10 +1534,13 @@ static VALUE
 SchnorrSignature_serialized(VALUE self)
 {
   SchnorrSignature *schnorr_sig;
+  VALUE result;
 
   CheckedTypedData_Get_Struct(self, SchnorrSignature, &SchnorrSignature_DataType, schnorr_sig);
 
-  return rb_str_new((char*)schnorr_sig->sig, SCHNORR_SIG_SIZE_BYTES);
+  result = rb_str_new((char*)schnorr_sig->sig, SCHNORR_SIG_SIZE_BYTES);
+  RB_GC_GUARD(self);
+  return result;
 }
 
 static VALUE
@@ -1554,7 +1554,7 @@ SchnorrSignature_verify(VALUE self, VALUE in_message, VALUE in_xonly_pubkey)
   CheckedTypedData_Get_Struct(in_xonly_pubkey, XOnlyPublicKey, &XOnlyPublicKey_DataType, xonly_pubkey);
   Check_Type(in_message, T_STRING);
 
-  msg = (unsigned char*)StringValuePtr(in_message);
+  msg = (unsigned char*)RSTRING_PTR(in_message);
   if (secp256k1_schnorrsig_verify(secp256k1_context_static, schnorr_sig->sig, msg, RSTRING_LEN(in_message), &xonly_pubkey->pubkey) != 1)
   {
     return Qfalse;
@@ -1669,7 +1669,7 @@ Context_initialize(int argc, const VALUE* argv, VALUE self)
 
   if (!NIL_P(context_randomization_bytes))
   {
-    seed32 = (unsigned char*)StringValuePtr(context_randomization_bytes);
+    seed32 = (unsigned char*)RSTRING_PTR(context_randomization_bytes);
 
     // Randomize the context at initialization time rather than before calls so
     // the same context can be used across threads safely.
@@ -1715,13 +1715,14 @@ Context_key_pair_from_private_key(VALUE self, VALUE in_private_key_data)
   result = KeyPair_alloc(Secp256k1_KeyPair_class);
   CheckedTypedData_Get_Struct(result, KeyPair, &KeyPair_DataType, keypair);
 
-  private_key_data = (unsigned char*)StringValuePtr(in_private_key_data);
+  private_key_data = (unsigned char*)RSTRING_PTR(in_private_key_data);
 
   if (secp256k1_keypair_create(context->ctx, &keypair->keypair, private_key_data) == 0)
   {
     rb_raise(Secp256k1_Error_class, "invalid secret when attempting to create keypair");
   }
 
+  RB_GC_GUARD(self);
   return result;
 }
 
@@ -1754,10 +1755,10 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
 
   context = Context_get(self);
   CheckedTypedData_Get_Struct(in_private_key, PrivateKey, &PrivateKey_DataType, private_key);
-  hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   signature_result = Signature_alloc(Secp256k1_Signature_class);
   CheckedTypedData_Get_Struct(signature_result, Signature, &Signature_DataType, signature);
+  hash32 = (unsigned char*)RSTRING_PTR(in_hash32);
  
   // Attempt to sign the hash of the given data
   if (SUCCESS(SignData(context->ctx,
@@ -1765,6 +1766,8 @@ Context_sign(VALUE self, VALUE in_private_key, VALUE in_hash32)
                        private_key->data,
                        &(signature->sig))))
   {
+    RB_GC_GUARD(self);
+    RB_GC_GUARD(in_private_key);
     return signature_result;
   }
 
@@ -1792,8 +1795,8 @@ Context_tagged_sha256(VALUE self, VALUE in_tag, VALUE in_message)
 
   context = Context_get(self);
 
-  tag = (unsigned char*)StringValuePtr(in_tag);
-  msg = (unsigned char*)StringValuePtr(in_message);
+  tag = (unsigned char*)RSTRING_PTR(in_tag);
+  msg = (unsigned char*)RSTRING_PTR(in_message);
 
   if (secp256k1_tagged_sha256(context->ctx, hash32, tag, RSTRING_LEN(in_tag), msg, RSTRING_LEN(in_message)) != 1)
   {
@@ -1834,7 +1837,7 @@ Context_verify(VALUE self, VALUE in_signature, VALUE in_pubkey, VALUE in_hash32)
   CheckedTypedData_Get_Struct(in_pubkey, PublicKey, &PublicKey_DataType, public_key);
   CheckedTypedData_Get_Struct(in_signature, Signature, &Signature_DataType, signature);
 
-  hash32 = (unsigned char*)StringValuePtr(in_hash32);
+  hash32 = (unsigned char*)RSTRING_PTR(in_hash32);
   
   if (secp256k1_ecdsa_verify(context->ctx,
                              &(signature->sig),
@@ -1880,7 +1883,6 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
   CheckedTypedData_Get_Struct(
     in_private_key, PrivateKey, &PrivateKey_DataType, private_key
   );
-  hash32 = (unsigned char*)StringValuePtr(in_hash32);
 
   result = RecoverableSignature_alloc(Secp256k1_RecoverableSignature_class);
   CheckedTypedData_Get_Struct(
@@ -1889,6 +1891,7 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
     &RecoverableSignature_DataType,
     recoverable_signature
   );
+  hash32 = (unsigned char*)RSTRING_PTR(in_hash32);
 
   if (SUCCESS(RecoverableSignData(context->ctx,
                                   hash32,
@@ -1896,6 +1899,8 @@ Context_sign_recoverable(VALUE self, VALUE in_private_key, VALUE in_hash32)
                                   &(recoverable_signature->sig))))
   {
     recoverable_signature->ctx = secp256k1_context_clone(context->ctx);
+    RB_GC_GUARD(self);
+    RB_GC_GUARD(in_private_key);
     return result;
   }
 
@@ -1929,7 +1934,6 @@ Context_recoverable_signature_from_compact(
   Check_Type(in_recovery_id, T_FIXNUM);
   context = Context_get(self);
 
-  compact_sig = (unsigned char*)StringValuePtr(in_compact_sig);
   recovery_id = FIX2INT(in_recovery_id);
 
   if (RSTRING_LEN(in_compact_sig) != 64)
@@ -1951,6 +1955,7 @@ Context_recoverable_signature_from_compact(
     &RecoverableSignature_DataType,
     recoverable_signature
   );
+  compact_sig = (unsigned char*)RSTRING_PTR(in_compact_sig);
 
   if (secp256k1_ecdsa_recoverable_signature_parse_compact(
         context->ctx,
@@ -1959,6 +1964,7 @@ Context_recoverable_signature_from_compact(
         recovery_id) == 1)
   {
     recoverable_signature->ctx = secp256k1_context_clone(context->ctx);
+    RB_GC_GUARD(self);
     return result;
   }
   
@@ -2012,6 +2018,9 @@ Context_ecdh(VALUE self, VALUE point, VALUE scalar)
 
   rb_iv_set(result, "@data", rb_str_new((char*)shared_secret->data, 32));
 
+  RB_GC_GUARD(self);
+  RB_GC_GUARD(point);
+  RB_GC_GUARD(scalar);
   return result;
 }
 
@@ -2045,7 +2054,7 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
     }
   }
 
-  msg = (unsigned char*)StringValuePtr(in_message);
+  msg = (unsigned char*)RSTRING_PTR(in_message);
   extraparams.ndata = NIL_P(in_auxrand) ? NULL : (void*)RSTRING_PTR(in_auxrand);
 
   if (secp256k1_schnorrsig_sign_custom(context->ctx, sig, msg, (size_t)RSTRING_LEN(in_message), &keypair->keypair, &extraparams) != 1)
@@ -2094,6 +2103,7 @@ static VALUE Type##_initialize_copy(VALUE self, VALUE other) \
   } \
   copy = ALLOC(Type); \
   *copy = *source; \
+  RB_GC_GUARD(other); \
   RTYPEDDATA_DATA(self) = copy; \
   return self; \
 }
@@ -2129,6 +2139,7 @@ RecoverableSignature_initialize_copy(VALUE self, VALUE other)
   copy = ALLOC(RecoverableSignature);
   copy->sig = source->sig;
   copy->ctx = secp256k1_context_clone(source->ctx);
+  RB_GC_GUARD(other);
   RTYPEDDATA_DATA(self) = copy;
   return self;
 }
