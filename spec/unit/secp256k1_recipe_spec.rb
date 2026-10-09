@@ -76,4 +76,15 @@ RSpec.describe Secp256k1Recipe do
     gemspec = Gem::Specification.load(File.expand_path('../../rbsecp256k1.gemspec', __dir__))
     expect(gemspec.files).to include('ext/rbsecp256k1/secp256k1_recipe.rb')
   end
+
+  it 'configures Windows static-library consumers without discarding caller flags' do
+    stub_const('RUBY_PLATFORM', 'x64-mingw-ucrt')
+    original_flags = ENV['CPPFLAGS']
+    begin
+      ENV['CPPFLAGS'] = '-DUSER_BUILD_FLAG=1'
+      expect(recipe.configure_options).to include('CPPFLAGS=-DUSER_BUILD_FLAG=1 -DSECP256K1_STATIC')
+    ensure
+      ENV['CPPFLAGS'] = original_flags
+    end
+  end
 end

@@ -22,6 +22,12 @@ class Secp256k1Recipe < MiniPortile
       "--with-pic=yes"
     ]
 
+    # MiniPortile builds a static library. Its benchmark consumers also need
+    # this definition on Windows to avoid references to DLL import symbols.
+    if RUBY_PLATFORM =~ /mingw|mswin/
+      configure_options << "CPPFLAGS=#{ENV.fetch('CPPFLAGS', '')} -DSECP256K1_STATIC"
+    end
+
     # ECDH, extrakeys and schnorrsig are enabled by default in release v0.8.0,
     # but recovery still needs to be enabled manually.
     configure_options << "--enable-module-recovery" if WITH_RECOVERY
