@@ -10,6 +10,29 @@ on:
       - master
 
 jobs:
+  windows:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.4', '4.0']
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        bundler-cache: false
+    - name: Install MSYS2 build dependencies
+      run: ridk exec pacman -S --needed --noconfirm autoconf automake libtool make mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-gmp
+    - name: Verify native Windows ABI
+      run: |
+        ruby -r fiddle -e 'abort "Expected native Windows UCRT Ruby" unless RUBY_PLATFORM.include?("mingw-ucrt"); abort "Expected LLP64 ABI" unless Fiddle::SIZEOF_LONG == 4 && Fiddle::SIZEOF_SIZE_T == 8; puts "Native Windows LLP64 ABI confirmed"'
+    - name: Install dependencies
+      run: ridk exec bundle install
+    - name: Build native extension
+      run: ridk exec bundle exec rake compile
+    - name: Run tests
+      run: ridk exec bundle exec rake spec
   sanitizers:
     runs-on: ubuntu-latest
     steps:
