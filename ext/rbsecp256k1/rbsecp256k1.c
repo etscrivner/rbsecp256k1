@@ -192,9 +192,10 @@ typedef struct SchnorrSignature_dummy {
 static void
 Context_free(void* in_context)
 {
+  if (in_context == NULL) { return; }
   Context *context;
   context = (Context*)in_context;
-  secp256k1_context_destroy(context->ctx);
+  if (context->ctx != NULL) { secp256k1_context_destroy(context->ctx); }
   xfree(context);
 }
 
@@ -379,7 +380,9 @@ RecoverableSignature_free(void *in_recoverable_signature)
     (RecoverableSignature*)in_recoverable_signature
   );
 
-  secp256k1_context_destroy(recoverable_signature->ctx);
+  if (recoverable_signature->ctx != NULL) {
+    secp256k1_context_destroy(recoverable_signature->ctx);
+  }
   xfree(recoverable_signature);
 }
 

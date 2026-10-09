@@ -30,6 +30,7 @@ Gem::Specification.new do |s|
   # Development dependencies
   s.add_development_dependency "base64", "~> 0.3"
   s.add_development_dependency "benchmark", "~> 0.5"
+  s.add_development_dependency 'csv', '~> 3.0'
   s.add_development_dependency 'keccak', '~> 1.3'
   s.add_development_dependency "ostruct", "~> 0.6"
   s.add_development_dependency 'rake', '~> 13.0'
