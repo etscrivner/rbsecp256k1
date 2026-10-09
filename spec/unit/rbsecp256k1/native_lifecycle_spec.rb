@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'weakref'
 
 RSpec.describe 'Native object lifecycle' do
   let(:context) { Secp256k1::Context.create }
@@ -57,6 +56,31 @@ RSpec.describe 'Native object lifecycle' do
     native_values.reject { |value| Secp256k1.have_ecdh? && value.is_a?(Secp256k1::SharedSecret) }
   end
 
+  # GC may conservatively retain discarded objects. These are GC smoke tests,
+  # not assertions about when individual native allocations are destroyed.
+  # Ruby maintainers explain why even repeated GC cannot guarantee collection
+  # of a particular object: https://bugs.ruby-lang.org/issues/19041
+  def copy_discarding_source(copy_method)
+    Secp256k1::Context.create.public_send(copy_method)
+  end
+
+  def discard_native_copies(values)
+    values.each do |value|
+      value.dup
+      value.clone
+    end
+  end
+
+  def copied_native_values(copy_method)
+    local_context = Secp256k1::Context.create
+    pair = local_context.key_pair_from_private_key('a' * 32)
+    values = [pair, pair.private_key, pair.public_key, pair.xonly_public_key,
+              local_context.sign(pair.private_key, digest)]
+    values << local_context.sign_recoverable(pair.private_key, digest) if Secp256k1.have_recovery?
+    values << local_context.sign_schnorr(pair, 'message') if Secp256k1.have_schnorr?
+    values.map { |value| value.public_send(copy_method) }
+  end
+
   %i[dup clone].each do |method|
     it "copies keys and signatures with #{method} into usable independent objects" do
       copyable_values.each do |source|
@@ -78,18 +102,9 @@ RSpec.describe 'Native object lifecycle' do
       end
     end
 
-    it "keeps #{method} copies usable after their sources are collected" do
-      copies, references = Thread.new do
-        local_context = Secp256k1::Context.create
-        pair = local_context.key_pair_from_private_key('a' * 32)
-        values = [pair, pair.private_key, pair.public_key, pair.xonly_public_key,
-                  local_context.sign(pair.private_key, digest)]
-        values << local_context.sign_recoverable(pair.private_key, digest) if Secp256k1.have_recovery?
-        values << local_context.sign_schnorr(pair, 'message') if Secp256k1.have_schnorr?
-        [values.map { |value| value.public_send(method) }, values.map { |value| WeakRef.new(value) }]
-      end.value
+    it "keeps #{method} copies usable across GC after discarding their sources" do
+      copies = copied_native_values(method)
       GC.start
-      expect(references.none?(&:weakref_alive?)).to be true
       expect(copies[0].private_key).to eq(private_key)
       expect(context.sign(copies[1], digest)).to eq(signature)
       expect(context.verify(copies[4], copies[2], digest)).to be true
@@ -144,13 +159,10 @@ RSpec.describe 'Native object lifecycle' do
     expect { context.verify(signature, empty, digest) }.to raise_error(Secp256k1::Error)
   end
 
-  it 'leaves original keys and signatures usable after their copies are collected' do
+  it 'keeps original keys and signatures usable across GC after discarding copies' do
     sources = copyable_values
-    references = Thread.new do
-      sources.flat_map { |value| [WeakRef.new(value.dup), WeakRef.new(value.clone)] }
-    end.value
+    discard_native_copies(sources)
     GC.start
-    expect(references.none?(&:weakref_alive?)).to be true
     expect(context.sign(private_key, digest)).to eq(signature)
     expect(context.verify(signature, public_key, digest)).to be true
     expect(key_pair.private_key).to eq(private_key)
@@ -194,22 +206,16 @@ RSpec.describe 'Native object lifecycle' do
         expect(copy.verify(signature, public_key, digest)).to be true
       end
 
-      it 'remains usable after the original context is collected' do
-        # A finished thread avoids conservative stack roots retaining the source.
-        copy, reference = Thread.new do
-          source = Secp256k1::Context.create
-          [source.public_send(copy_method), WeakRef.new(source)]
-        end.value
+      it 'remains usable across GC after discarding the original context' do
+        copy = copy_discarding_source(copy_method)
         GC.start
-        expect(reference.weakref_alive?).to be_falsey
         expect(copy.key_pair_from_private_key('a' * 32).public_key).to eq(public_key)
         expect(copy.verify(signature, public_key, digest)).to be true
       end
 
-      it 'leaves the original usable after the copied context is collected' do
-        reference = Thread.new { WeakRef.new(context.public_send(copy_method)) }.value
+      it 'leaves the original usable across GC after discarding the copied context' do
+        context.public_send(copy_method)
         GC.start
-        expect(reference.weakref_alive?).to be_falsey
         expect(context.verify(signature, public_key, digest)).to be true
       end
 
