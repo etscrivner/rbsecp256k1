@@ -23,6 +23,7 @@
 #include <ruby/missing.h>
 #include <string.h>
 #include <secp256k1.h>
+#include <secp256k1_preallocated.h>
 
 // Check for optional sub-modules. As a rule any secp256k1 submodule is
 // optional and so should be blocked off using these ifdefs.
@@ -176,6 +177,10 @@ typedef struct SchnorrSignature_dummy {
 #endif // HAVE_SECP256K1_SCHNORRSIG_H
 //
 // Typed data definitions
+// dsize reports owned native storage only; Ruby adds the object itself.
+// This is ObjectSpace reporting, not another charge against Ruby's allocator.
+// Context clone-size queries include the upstream allocation without allocator
+// overhead. No Ruby allocations or exceptions are permitted in these callbacks.
 //
 
 // Context
@@ -188,9 +193,18 @@ Context_free(void* in_context)
   xfree(context);
 }
 
+static size_t
+Context_memsize(const void *data)
+{
+  if (data == NULL) { return 0; }
+  const Context *object = (const Context *)data;
+  return sizeof(*object) + (object->ctx == NULL ? 0 :
+    secp256k1_context_preallocated_clone_size(object->ctx));
+}
+
 static const rb_data_type_t Context_DataType = {
   "Context",
-  { 0, Context_free, 0 },
+  { 0, Context_free, Context_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -242,9 +256,15 @@ PublicKey_free(void *in_public_key)
   xfree(public_key);
 }
 
+static size_t
+PublicKey_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(PublicKey);
+}
+
 static const rb_data_type_t PublicKey_DataType = {
   "PublicKey",
-  { 0, PublicKey_free, 0 },
+  { 0, PublicKey_free, PublicKey_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -258,9 +278,15 @@ XOnlyPublicKey_free(void* in_xonly_pubkey)
   xfree(xonly_pubkey);
 }
 
+static size_t
+XOnlyPublicKey_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(XOnlyPublicKey);
+}
+
 static const rb_data_type_t XOnlyPublicKey_DataType = {
   "XOnlyPublicKey",
-  { 0, XOnlyPublicKey_free, 0 },
+  { 0, XOnlyPublicKey_free, XOnlyPublicKey_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -280,9 +306,15 @@ PrivateKey_free(void *in_private_key)
   xfree(private_key);
 }
 
+static size_t
+PrivateKey_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(PrivateKey);
+}
+
 static const rb_data_type_t PrivateKey_DataType = {
   "PrivateKey",
-  { 0, PrivateKey_free, 0 },
+  { 0, PrivateKey_free, PrivateKey_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -298,9 +330,15 @@ KeyPair_free(void *in_keypair)
   xfree(keypair);
 }
 
+static size_t
+KeyPair_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(KeyPair);
+}
+
 static const rb_data_type_t KeyPair_DataType = {
   "KeyPair",
-  { 0, KeyPair_free, 0 },
+  { 0, KeyPair_free, KeyPair_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -313,9 +351,15 @@ Signature_free(void *in_signature)
   xfree(signature);
 }
 
+static size_t
+Signature_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(Signature);
+}
+
 static const rb_data_type_t Signature_DataType = {
   "Signature",
-  { 0, Signature_free, 0 },
+  { 0, Signature_free, Signature_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -334,9 +378,18 @@ RecoverableSignature_free(void *in_recoverable_signature)
   xfree(recoverable_signature);
 }
 
+static size_t
+RecoverableSignature_memsize(const void *data)
+{
+  if (data == NULL) { return 0; }
+  const RecoverableSignature *object = (const RecoverableSignature *)data;
+  return sizeof(*object) + (object->ctx == NULL ? 0 :
+    secp256k1_context_preallocated_clone_size(object->ctx));
+}
+
 static const rb_data_type_t RecoverableSignature_DataType = {
   "RecoverableSignature",
-  { 0, RecoverableSignature_free, 0 },
+  { 0, RecoverableSignature_free, RecoverableSignature_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -355,9 +408,15 @@ SharedSecret_free(void *in_shared_secret)
   xfree(shared_secret);
 }
 
+static size_t
+SharedSecret_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(SharedSecret);
+}
+
 static const rb_data_type_t SharedSecret_DataType = {
   "SharedSecret",
-  { 0, SharedSecret_free, 0 },
+  { 0, SharedSecret_free, SharedSecret_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
@@ -374,9 +433,15 @@ SchnorrSignature_free(void *in_schnorr_sig)
   xfree(schnorr_sig);
 }
 
+static size_t
+SchnorrSignature_memsize(const void *data)
+{
+  return data == NULL ? 0 : sizeof(SchnorrSignature);
+}
+
 static const rb_data_type_t SchnorrSignature_DataType = {
   "SchnorrSignature",
-  { 0, SchnorrSignature_free, 0 },
+  { 0, SchnorrSignature_free, SchnorrSignature_memsize },
   0, 0,
   RUBY_TYPED_FREE_IMMEDIATELY
 };
