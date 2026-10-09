@@ -75,16 +75,31 @@ new [RecoverableSignature](recoverable_signature.md). The `private_key` is expec
 
 #### sign_schnorr(keypair, message)
 
+Signs a Ruby `String` containing any number of bytes, including zero bytes.
+
 Same as `sign_schnorr_custom(keypair, message, auxrand)` but generates
 `auxrand` for you using `SecureRandom`. This should almost always be the method
 used for Schnorr signing.
 
 #### sign_schnorr_custom(keypair, message, auxrand)
 
-Sign the given 32-byte binary string `message` using the given `keypair`. It is
-recommend that `message` be generated using `tagged_sha256`. `auxrand` should
-be 32-bytes of fresh randomness, but can optionally be `nil` if generating
-randomness is expensive.
+Signs the bytes of the Ruby `String` `message` using the given [KeyPair](key_pair.md)
+and returns a [SchnorrSignature](schnorr_signature.md). Messages may have any byte
+length, including zero, and may contain null bytes. String encoding does not
+change the bytes being signed.
+
+The message is signed directly, without implicit hashing, padding, or truncation.
+If your protocol requires a tagged hash for domain separation, compute it
+explicitly with `tagged_sha256` before signing. Verification must use the same
+message bytes.
+
+`auxrand` must be a `String` containing exactly 32 bytes of fresh randomness,
+or `nil`. With `nil`, the default BIP-340 nonce function treats auxiliary
+randomness as 32 zero bytes. Prefer `sign_schnorr`, which generates fresh
+randomness automatically.
+
+Non-string messages or non-string, non-`nil` randomness raise `TypeError`.
+Randomness strings with a byte length other than 32 raise `Secp256k1::Error`.
 
 #### tagged_sha256(tag, message)
 

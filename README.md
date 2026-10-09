@@ -84,6 +84,11 @@ the following command to set up your local environment:
 make setup
 ```
 
+### Line Endings
+
+.gitattributes keeps text files in Unix LF format across Windows, Linux, and
+macOS. Git detects binary files automatically and leaves their contents unchanged.
+
 ### Compiling Extension
 
 To compile the extension gem run the following (this is required to run tests):
