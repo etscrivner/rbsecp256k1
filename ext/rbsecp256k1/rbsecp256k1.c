@@ -20,6 +20,8 @@
 #endif // HAVE_SECP256K1_EXTRAKEYS_H
 
 #include <ruby.h>
+#include <ruby/missing.h>
+#include <string.h>
 #include <secp256k1.h>
 
 // Check for optional sub-modules. As a rule any secp256k1 submodule is
@@ -271,14 +273,9 @@ PrivateKey_free(void *in_private_key)
   PrivateKey *private_key;
   private_key = (PrivateKey*)in_private_key;
 
-  /* Take the best practice recommendation from the libsecp256k1 example and
-   * clear the secret from memory in case there are bugs that might allow an
-   * attacker to leak memory.
-   *
-   * That being said its not clear how much control we actually have over Ruby
-   * potentially copying the string version of this private key data.
-   */
-  memset(private_key->data, 0, 32);
+  // Ruby supplies a portable wipe that must not be optimized away. This does
+  // not erase Ruby strings or other copies previously returned to callers.
+  explicit_bzero(private_key->data, sizeof(private_key->data));
 
   xfree(private_key);
 }
@@ -294,8 +291,10 @@ static const rb_data_type_t PrivateKey_DataType = {
 static void
 KeyPair_free(void *in_keypair)
 {
+  if (in_keypair == NULL) { return; }
   KeyPair *keypair;
   keypair = (KeyPair*)in_keypair;
+  explicit_bzero(keypair, sizeof(*keypair));
   xfree(keypair);
 }
 
@@ -348,9 +347,11 @@ static const rb_data_type_t RecoverableSignature_DataType = {
 static void
 SharedSecret_free(void *in_shared_secret)
 {
+  if (in_shared_secret == NULL) { return; }
   SharedSecret *shared_secret;
 
   shared_secret = (SharedSecret*)in_shared_secret;
+  explicit_bzero(shared_secret->data, sizeof(shared_secret->data));
   xfree(shared_secret);
 }
 
@@ -939,17 +940,30 @@ static VALUE
 KeyPair_private_key(VALUE self)
 {
   KeyPair *key_pair;
-  unsigned char private_key_data[32];
+  PrivateKey *private_key;
+  VALUE result;
 
+  // Extract directly into owned storage instead of leaving a stack copy of
+  // the secret behind. Allocate before obtaining the source native pointer.
+  result = PrivateKey_alloc(Secp256k1_PrivateKey_class);
   CheckedTypedData_Get_Struct(self, KeyPair, &KeyPair_DataType, key_pair);
+  CheckedTypedData_Get_Struct(result, PrivateKey, &PrivateKey_DataType, private_key);
 
-  if (secp256k1_keypair_sec(secp256k1_context_static, private_key_data, &key_pair->keypair) == 0)
+  if (secp256k1_keypair_sec(secp256k1_context_static, private_key->data, &key_pair->keypair) == 0)
   {
+    explicit_bzero(private_key->data, sizeof(private_key->data));
     rb_raise(Secp256k1_Error_class, "failed to derive private key from keypair");
     return Qnil;
   }
 
-  return PrivateKey_create(private_key_data);
+  if (secp256k1_ec_seckey_verify(secp256k1_context_static, private_key->data) != 1)
+  {
+    explicit_bzero(private_key->data, sizeof(private_key->data));
+    rb_raise(Secp256k1_Error_class, "invalid private key data");
+    return Qnil;
+  }
+
+  return result;
 }
 
 /**
