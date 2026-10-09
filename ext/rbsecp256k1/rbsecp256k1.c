@@ -1879,7 +1879,7 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
   KeyPair* keypair;
   SchnorrSignature* schnorr_sig;
   unsigned char* msg;
-  unsigned char* auxrand;
+  secp256k1_schnorrsig_extraparams extraparams = SECP256K1_SCHNORRSIG_EXTRAPARAMS_INIT;
   unsigned char sig[64];
   VALUE result;
 
@@ -1887,11 +1887,6 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
   TypedData_Get_Struct(in_keypair, KeyPair, &KeyPair_DataType, keypair);
 
   Check_Type(in_message, T_STRING);
-  if (RSTRING_LEN(in_message) != 32)
-  {
-    rb_raise(Secp256k1_Error_class, "schnorr signing message must be 32-bytes in length");
-    return Qnil;
-  }
 
   if (!NIL_P(in_auxrand))
   {
@@ -1904,9 +1899,9 @@ Context_sign_schnorr_custom(VALUE self, VALUE in_keypair, VALUE in_message, VALU
   }
 
   msg = (unsigned char*)StringValuePtr(in_message);
-  auxrand = (unsigned char*)StringValuePtr(in_auxrand);
+  extraparams.ndata = NIL_P(in_auxrand) ? NULL : (void*)RSTRING_PTR(in_auxrand);
 
-  if (secp256k1_schnorrsig_sign32(context->ctx, sig, msg, &keypair->keypair, auxrand) != 1)
+  if (secp256k1_schnorrsig_sign_custom(context->ctx, sig, msg, (size_t)RSTRING_LEN(in_message), &keypair->keypair, &extraparams) != 1)
   {
     rb_raise(Secp256k1_Error_class, "schnorr signing failed");
     return Qnil;

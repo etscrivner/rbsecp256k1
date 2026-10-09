@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'csv'
 
 if Secp256k1.have_schnorr?
   RSpec.describe Secp256k1::SchnorrSignature do
@@ -8,6 +9,33 @@ if Secp256k1.have_schnorr?
     # These are from the BIP-340 test vectors
     let(:example_sig_data1) { Secp256k1::Util.hex_to_bin("E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA821525F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0") }
     let(:example_sig_data2) { Secp256k1::Util.hex_to_bin("6896BD60EEAE296DB48A229FF71DFE071BDE413E6D43F917DC8DCF8C78DE33418906D11AC976ABCCB20B091292BFF4EA897EFCB639EA871CFA95F6DE339E4B0A") }
+
+    vectors = CSV.read(File.expand_path('../../fixtures/bip340-test-vectors.csv', __dir__), headers: true)
+    # Cover 32-byte compatibility and BIP-340 messages of 0, 1, 17, and 100 bytes.
+    vectors.select { |vector| %w[0 15 16 17 18].include?(vector['index']) }.each do |vector|
+      # Empty CSV message fields represent a zero-byte message.
+      message = [vector['message'].to_s].pack('H*')
+
+      context "with official vector #{vector['index']} (#{message.bytesize} message bytes)" do
+        let(:key_pair) { context.key_pair_from_private_key([vector['secret key']].pack('H*')) }
+        let(:public_key) { Secp256k1::XOnlyPublicKey.from_data([vector['public key']].pack('H*')) }
+        let(:auxrand) { [vector['aux_rand']].pack('H*') }
+        let(:expected_signature) { Secp256k1::SchnorrSignature.from_data([vector['signature']].pack('H*')) }
+
+        it 'verifies the official signature' do
+          expect(expected_signature.verify(message, public_key)).to be true
+        end
+
+        it 'produces the exact official signature with supplied randomness' do
+          expect(context.sign_schnorr_custom(key_pair, message, auxrand)).to eq(expected_signature)
+        end
+
+        it 'signs and verifies with generated randomness' do
+          signature = context.sign_schnorr(key_pair, message)
+          expect(signature.verify(message, public_key)).to be true
+        end
+      end
+    end
 
     describe '.from_data' do
       it 'correctly loads signature from data' do
